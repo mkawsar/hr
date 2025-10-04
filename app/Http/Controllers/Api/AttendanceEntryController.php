@@ -26,6 +26,7 @@ class AttendanceEntryController extends Controller
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'location_id' => 'nullable|exists:locations,id',
+            'address' => 'nullable|string|max:1000',
             'notes' => 'nullable|string|max:500',
         ]);
 
@@ -95,6 +96,10 @@ class AttendanceEntryController extends Controller
                 $entryData['clock_in_location_id'] = $request->location_id;
             }
 
+            if ($request->has('address')) {
+                $entryData['clock_in_address'] = $request->address;
+            }
+
             // Check if late based on office time
             $lateMinutes = 0;
             if ($user->officeTime) {
@@ -135,6 +140,7 @@ class AttendanceEntryController extends Controller
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'location_id' => 'nullable|exists:locations,id',
+            'address' => 'nullable|string|max:1000',
             'notes' => 'nullable|string|max:500',
         ]);
 
@@ -170,6 +176,10 @@ class AttendanceEntryController extends Controller
 
             if ($request->has('location_id')) {
                 $entryData['clock_out_location_id'] = $request->location_id;
+            }
+
+            if ($request->has('address')) {
+                $entryData['clock_out_address'] = $request->address;
             }
 
             if ($request->has('notes')) {

@@ -1,96 +1,4 @@
 <x-filament-widgets::widget>
-    @push('scripts')
-        <script>
-        // Define getCurrentLocation function globally if not already defined
-        if (typeof getCurrentLocation === 'undefined') {
-            let currentLocation = null;
-
-            function getCurrentLocation() {
-                const statusElement = document.getElementById('location-status');
-                const locationText = document.getElementById('location-text');
-                const coordsElement = document.getElementById('location-coords');
-                const latitudeElement = document.getElementById('latitude');
-                const longitudeElement = document.getElementById('longitude');
-                
-                if (!navigator.geolocation) {
-                    if (locationText) {
-                        locationText.textContent = 'Geolocation not supported';
-                    } else {
-                        console.warn('Geolocation not supported');
-                    }
-                    return;
-                }
-
-                if (locationText) {
-                    locationText.textContent = 'Getting location...';
-                }
-                
-                navigator.geolocation.getCurrentPosition(
-                    function(position) {
-                        currentLocation = {
-                            latitude: position.coords.latitude,
-                            longitude: position.coords.longitude
-                        };
-                        
-                        if (locationText) {
-                            locationText.textContent = 'Location obtained';
-                        }
-                        
-                        if (latitudeElement && longitudeElement) {
-                            latitudeElement.textContent = currentLocation.latitude.toFixed(6);
-                            longitudeElement.textContent = currentLocation.longitude.toFixed(6);
-                        }
-                        
-                        if (coordsElement) {
-                            coordsElement.classList.remove('hidden');
-                        }
-                        
-                        // Store location in window for use by Livewire and other components
-                        window.currentLocation = currentLocation;
-                        
-                        // Dispatch a custom event for other components to listen to
-                        window.dispatchEvent(new CustomEvent('locationObtained', {
-                            detail: currentLocation
-                        }));
-                    },
-                    function(error) {
-                        let message = 'Location access denied';
-                        switch(error.code) {
-                            case error.PERMISSION_DENIED:
-                                message = 'Location access denied';
-                                break;
-                            case error.POSITION_UNAVAILABLE:
-                                message = 'Location unavailable';
-                                break;
-                            case error.TIMEOUT:
-                                message = 'Location request timeout';
-                                break;
-                        }
-                        
-                        if (locationText) {
-                            locationText.textContent = message;
-                        } else {
-                            console.warn('Location error:', message);
-                        }
-                        
-                        // Dispatch error event
-                        window.dispatchEvent(new CustomEvent('locationError', {
-                            detail: { error: error, message: message }
-                        }));
-                    },
-                    {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 300000 // 5 minutes
-                    }
-                );
-            }
-
-            // Make function globally available
-            window.getCurrentLocation = getCurrentLocation;
-        }
-        </script>
-    @endpush
     <x-filament::section>
         <x-slot name="heading">
             <div class="flex items-center justify-between">
@@ -177,7 +85,7 @@
             <div class="flex flex-col sm:flex-row gap-3">
                 @if(!$this->isClockedIn && $this->isWorkingDay)
                     <x-filament::button
-                        wire:click="clockIn"
+                        onclick="performClockIn()"
                         color="success"
                         size="lg"
                         class="flex-1"
@@ -187,7 +95,7 @@
                     </x-filament::button>
                 @elseif($this->isClockedIn && !$this->isClockedOut)
                     <x-filament::button
-                        wire:click="clockOut"
+                        onclick="performClockOut()"
                         color="warning"
                         size="lg"
                         class="flex-1"
@@ -232,7 +140,12 @@
                     </div>
                 </div>
                 <div id="location-coords" class="text-xs text-gray-500 dark:text-gray-400 mt-2 hidden">
-                    <span id="latitude"></span>, <span id="longitude"></span>
+                    <div class="mb-1">
+                        <span class="font-medium">Coordinates:</span> <span id="latitude"></span>, <span id="longitude"></span>
+                    </div>
+                    <div id="location-address" class="hidden">
+                        <span class="font-medium">Address:</span> <span class="text-gray-600 dark:text-gray-300 break-words" id="address-text"></span>
+                    </div>
                 </div>
             </div>
 
@@ -242,28 +155,49 @@
                     <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Today's Entries</h4>
                     <div class="space-y-2">
                         @foreach($this->todayEntries as $entry)
-                            <div class="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700 rounded">
-                                <div class="flex items-center space-x-3">
-                                    <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    <div>
-                                        <div class="text-sm font-medium text-gray-900 dark:text-white">
-                                            {{ \Carbon\Carbon::parse($entry['clock_in'])->format('H:i') }}
-                                            @if($entry['clock_out'])
-                                                - {{ \Carbon\Carbon::parse($entry['clock_out'])->format('H:i') }}
-                                            @else
-                                                - Present
+                            <div class="py-3 px-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                                        <div>
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white">
+                                                {{ \Carbon\Carbon::parse($entry['clock_in'])->format('H:i') }}
+                                                @if($entry['clock_out'])
+                                                    - {{ \Carbon\Carbon::parse($entry['clock_out'])->format('H:i') }}
+                                                @else
+                                                    - Present
+                                                @endif
+                                            </div>
+                                            @if($entry['working_hours'])
+                                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                                    {{ number_format($entry['working_hours'], 2) }}h
+                                                </div>
                                             @endif
                                         </div>
-                                        @if($entry['working_hours'])
-                                            <div class="text-xs text-gray-500 dark:text-gray-400">
-                                                {{ number_format($entry['working_hours'], 2) }}h
-                                            </div>
-                                        @endif
+                                    </div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                                        {{ ucfirst($entry['source']) }}
                                     </div>
                                 </div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400">
-                                    {{ ucfirst($entry['source']) }}
-                                </div>
+                                
+                                @if($entry['clock_in_address'] || $entry['clock_out_address'])
+                                    <div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                        <div class="space-y-1">
+                                            @if($entry['clock_in_address'])
+                                                <div class="text-xs">
+                                                    <span class="text-blue-600 dark:text-blue-400 font-medium">Clock In:</span>
+                                                    <span class="text-gray-600 dark:text-gray-300 ml-1 break-words">{{ $entry['clock_in_address'] }}</span>
+                                                </div>
+                                            @endif
+                                            @if($entry['clock_out_address'])
+                                                <div class="text-xs">
+                                                    <span class="text-green-600 dark:text-green-400 font-medium">Clock Out:</span>
+                                                    <span class="text-gray-600 dark:text-gray-300 ml-1 break-words">{{ $entry['clock_out_address'] }}</span>
+                                                </div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endif
                             </div>
                         @endforeach
                     </div>

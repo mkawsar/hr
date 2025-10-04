@@ -22,6 +22,8 @@ class AttendanceEntry extends Model
         'clock_out_longitude',
         'clock_in_location_id',
         'clock_out_location_id',
+        'clock_in_address',
+        'clock_out_address',
         'working_hours',
         'late_minutes',
         'early_minutes',

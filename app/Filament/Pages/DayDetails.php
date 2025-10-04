@@ -78,6 +78,30 @@ class DayDetails extends Page implements HasTable
                     ->formatStateUsing(fn (string $state): string => 
                         str_replace('_', ' ', ucwords($state))
                     ),
+                TextColumn::make('clock_in_address')
+                    ->label('📍 Clock In Location')
+                    ->limit(40)
+                    ->wrap()
+                    ->tooltip(function (TextColumn $column): ?string {
+                        $state = $column->getState();
+                        return $state ? $state : null;
+                    })
+                    ->formatStateUsing(function (?string $state): string {
+                        return $state ? $state : 'No location data';
+                    })
+                    ->color(fn (?string $state): string => $state ? 'success' : 'gray'),
+                TextColumn::make('clock_out_address')
+                    ->label('📍 Clock Out Location')
+                    ->limit(40)
+                    ->wrap()
+                    ->tooltip(function (TextColumn $column): ?string {
+                        $state = $column->getState();
+                        return $state ? $state : null;
+                    })
+                    ->formatStateUsing(function (?string $state): string {
+                        return $state ? $state : 'No location data';
+                    })
+                    ->color(fn (?string $state): string => $state ? 'success' : 'gray'),
                 TextColumn::make('source')
                     ->label('Source')
                     ->badge()

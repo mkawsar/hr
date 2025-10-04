@@ -87,34 +87,68 @@ class MyAttendance extends Page implements HasTable
                         $html = '<div class="space-y-4">';
                         
                         // Day Summary
-                        $html .= '<div class="bg-blue-50 p-4 rounded-lg">';
-                        $html .= '<h4 class="font-semibold text-blue-900 mb-2">Day Summary</h4>';
+                        $html .= '<div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">';
+                        $html .= '<h4 class="font-semibold text-blue-900 dark:text-blue-100 mb-2">📊 Day Summary</h4>';
                         $html .= '<div class="grid grid-cols-2 gap-2 text-sm">';
-                        $html .= '<div><strong>Date:</strong> ' . $record->date->format('M d, Y') . '</div>';
-                        $html .= '<div><strong>Total Entries:</strong> ' . $record->total_entries . '</div>';
-                        $html .= '<div><strong>First Clock In:</strong> ' . ($record->first_clock_in ? \Carbon\Carbon::parse($record->first_clock_in)->format('H:i:s') : '-') . '</div>';
-                        $html .= '<div><strong>Last Clock Out:</strong> ' . ($record->last_clock_out ? \Carbon\Carbon::parse($record->last_clock_out)->format('H:i:s') : '-') . '</div>';
-                        $html .= '<div><strong>Total Hours:</strong> ' . number_format($record->total_working_hours, 2) . 'h</div>';
-                        $html .= '<div><strong>Status:</strong> ' . ucwords(str_replace('_', ' ', $record->status)) . '</div>';
+                        $html .= '<div class="text-blue-800 dark:text-blue-200"><strong class="text-blue-900 dark:text-blue-100">Date:</strong> ' . $record->date->format('M d, Y') . '</div>';
+                        $html .= '<div class="text-blue-800 dark:text-blue-200"><strong class="text-blue-900 dark:text-blue-100">Total Entries:</strong> ' . $record->total_entries . '</div>';
+                        $html .= '<div class="text-blue-800 dark:text-blue-200"><strong class="text-blue-900 dark:text-blue-100">First Clock In:</strong> ' . ($record->first_clock_in ? \Carbon\Carbon::parse($record->first_clock_in)->format('H:i:s') : '-') . '</div>';
+                        $html .= '<div class="text-blue-800 dark:text-blue-200"><strong class="text-blue-900 dark:text-blue-100">Last Clock Out:</strong> ' . ($record->last_clock_out ? \Carbon\Carbon::parse($record->last_clock_out)->format('H:i:s') : '-') . '</div>';
+                        $html .= '<div class="text-blue-800 dark:text-blue-200"><strong class="text-blue-900 dark:text-blue-100">Total Hours:</strong> ' . number_format($record->total_working_hours, 2) . 'h</div>';
+                        $html .= '<div class="text-blue-800 dark:text-blue-200"><strong class="text-blue-900 dark:text-blue-100">Status:</strong> ' . ucwords(str_replace('_', ' ', $record->status)) . '</div>';
                         $html .= '</div>';
                         $html .= '</div>';
                         
                         // All Entries
                         if ($entries->count() > 0) {
-                            $html .= '<h4 class="font-semibold text-gray-900 mb-2">All Entries</h4>';
+                            $html .= '<h4 class="font-semibold text-gray-900 dark:text-white mb-3">📋 All Entries</h4>';
                             foreach ($entries as $index => $entry) {
-                                $html .= '<div class="border border-gray-200 p-3 rounded-lg">';
-                                $html .= '<h5 class="font-medium text-gray-900 mb-2">Entry ' . ($index + 1) . '</h5>';
-                                $html .= '<div class="grid grid-cols-2 gap-2 text-sm">';
-                                $html .= '<div><strong>Clock In:</strong> ' . ($entry->clock_in ? \Carbon\Carbon::parse($entry->clock_in)->format('H:i:s') : '-') . '</div>';
-                                $html .= '<div><strong>Clock Out:</strong> ' . ($entry->clock_out ? \Carbon\Carbon::parse($entry->clock_out)->format('H:i:s') : '-') . '</div>';
-                                $html .= '<div><strong>Working Hours:</strong> ' . ($entry->working_hours ? number_format($entry->working_hours, 2) . 'h' : '-') . '</div>';
-                                $html .= '<div><strong>Status:</strong> ' . ucwords(str_replace('_', ' ', $entry->entry_status)) . '</div>';
-                                $html .= '<div><strong>Source:</strong> ' . ucwords($entry->source) . '</div>';
-                                if ($entry->notes) {
-                                    $html .= '<div class="col-span-2"><strong>Notes:</strong> ' . $entry->notes . '</div>';
-                                }
+                                $html .= '<div class="border border-gray-200 dark:border-gray-600 p-4 rounded-lg mb-3 bg-white dark:bg-gray-800">';
+                                $html .= '<h5 class="font-medium text-gray-900 dark:text-white mb-3">Entry ' . ($index + 1) . '</h5>';
+                                
+                                // Basic Info Grid
+                                $html .= '<div class="grid grid-cols-2 gap-3 text-sm mb-3">';
+                                $html .= '<div class="text-gray-700 dark:text-gray-300"><strong class="text-gray-900 dark:text-white">Clock In:</strong> ' . ($entry->clock_in ? \Carbon\Carbon::parse($entry->clock_in)->format('H:i:s') : '-') . '</div>';
+                                $html .= '<div class="text-gray-700 dark:text-gray-300"><strong class="text-gray-900 dark:text-white">Clock Out:</strong> ' . ($entry->clock_out ? \Carbon\Carbon::parse($entry->clock_out)->format('H:i:s') : '-') . '</div>';
+                                $html .= '<div class="text-gray-700 dark:text-gray-300"><strong class="text-gray-900 dark:text-white">Working Hours:</strong> ' . ($entry->working_hours ? number_format($entry->working_hours, 2) . 'h' : '-') . '</div>';
+                                $html .= '<div class="text-gray-700 dark:text-gray-300"><strong class="text-gray-900 dark:text-white">Status:</strong> ' . ucwords(str_replace('_', ' ', $entry->entry_status)) . '</div>';
+                                $html .= '<div class="text-gray-700 dark:text-gray-300"><strong class="text-gray-900 dark:text-white">Source:</strong> ' . ucwords($entry->source) . '</div>';
                                 $html .= '</div>';
+                                
+                                // Address Information Section
+                                if ($entry->clock_in_address || $entry->clock_out_address) {
+                                    $html .= '<div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">';
+                                    $html .= '<h6 class="font-medium text-gray-800 dark:text-gray-200 mb-2 text-sm">📍 Location Details</h6>';
+                                    $html .= '<div class="space-y-2">';
+                                    if ($entry->clock_in_address) {
+                                        $html .= '<div class="flex items-start space-x-2">';
+                                        $html .= '<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">IN</span>';
+                                        $html .= '<div class="flex-1">';
+                                        $html .= '<div class="text-xs text-gray-600 dark:text-gray-400">Clock In Location</div>';
+                                        $html .= '<div class="text-sm text-gray-800 dark:text-gray-200 break-words">' . htmlspecialchars($entry->clock_in_address) . '</div>';
+                                        $html .= '</div>';
+                                        $html .= '</div>';
+                                    }
+                                    if ($entry->clock_out_address) {
+                                        $html .= '<div class="flex items-start space-x-2">';
+                                        $html .= '<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">OUT</span>';
+                                        $html .= '<div class="flex-1">';
+                                        $html .= '<div class="text-xs text-gray-600 dark:text-gray-400">Clock Out Location</div>';
+                                        $html .= '<div class="text-sm text-gray-800 dark:text-gray-200 break-words">' . htmlspecialchars($entry->clock_out_address) . '</div>';
+                                        $html .= '</div>';
+                                        $html .= '</div>';
+                                    }
+                                    $html .= '</div>';
+                                    $html .= '</div>';
+                                }
+                                
+                                // Notes Section
+                                if ($entry->notes) {
+                                    $html .= '<div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">';
+                                    $html .= '<h6 class="font-medium text-gray-800 dark:text-gray-200 mb-1 text-sm">📝 Notes</h6>';
+                                    $html .= '<div class="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 p-2 rounded break-words">' . htmlspecialchars($entry->notes) . '</div>';
+                                    $html .= '</div>';
+                                }
                                 $html .= '</div>';
                             }
                         }

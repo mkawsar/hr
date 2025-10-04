@@ -317,6 +317,14 @@ function showDayDetails(date) {
                                 </div>
                             </div>
                             ` : ''}
+                            ${entry.clock_in_address || entry.clock_out_address ? `
+                            <div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                <div class="space-y-1 text-xs">
+                                    ${entry.clock_in_address ? `<div><span class="text-blue-600 dark:text-blue-400 font-medium">Clock In:</span> <span class="text-gray-600 dark:text-gray-300">${entry.clock_in_address}</span></div>` : ''}
+                                    ${entry.clock_out_address ? `<div><span class="text-green-600 dark:text-green-400 font-medium">Clock Out:</span> <span class="text-gray-600 dark:text-gray-300">${entry.clock_out_address}</span></div>` : ''}
+                                </div>
+                            </div>
+                            ` : ''}
                         </div>
                     `;
                 });
