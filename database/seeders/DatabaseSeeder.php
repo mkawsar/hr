@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             LeaveTypeSeeder::class,
             LocationSeeder::class,
             DeductionRuleSeeder::class,
+            LeaveBalanceSeeder::class,
         ]);
     }
 }

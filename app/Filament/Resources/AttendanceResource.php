@@ -23,6 +23,47 @@ class AttendanceResource extends Resource
     
     protected static ?int $navigationSort = 1;
 
+    public static function canViewAny(): bool
+    {
+        $user = auth()->user();
+        return $user && ($user->isAdmin() || $user->isSupervisor());
+    }
+
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+        return $user && $user->isAdmin();
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+        return $user && $user->isAdmin();
+    }
+
+    public static function canDelete($record): bool
+    {
+        $user = auth()->user();
+        return $user && $user->isAdmin();
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $user = auth()->user();
+        
+        if ($user->isAdmin()) {
+            // Admin can see all attendance records
+            return parent::getEloquentQuery();
+        } elseif ($user->isSupervisor()) {
+            // Supervisor can only see their team's attendance records
+            return parent::getEloquentQuery()
+                ->whereIn('user_id', $user->subordinates->pluck('id'));
+        }
+        
+        // Employees cannot access this resource (they use MyAttendance page)
+        return parent::getEloquentQuery()->whereRaw('1 = 0');
+    }
+
     public static function form(Form $form): Form
     {
         return $form

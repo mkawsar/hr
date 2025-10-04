@@ -32,15 +32,17 @@ class AttendanceController extends Controller
         $user = Auth::user();
         $today = Carbon::today();
 
-        // Check if already clocked in today
-        $existingAttendance = Attendance::where('user_id', $user->id)
+        // Check if there's an open entry (clocked in but not clocked out)
+        $openEntry = Attendance::where('user_id', $user->id)
             ->whereDate('date', $today)
+            ->whereNotNull('clock_in')
+            ->whereNull('clock_out')
             ->first();
 
-        if ($existingAttendance && $existingAttendance->clock_in) {
+        if ($openEntry) {
             return response()->json([
-                'message' => 'Already clocked in today',
-                'attendance' => $existingAttendance
+                'message' => 'You have an open entry. Please clock out first.',
+                'attendance' => $openEntry
             ], 400);
         }
 
@@ -81,10 +83,7 @@ class AttendanceController extends Controller
             $attendanceData['status'] = 'present';
         }
 
-        $attendance = Attendance::updateOrCreate(
-            ['user_id' => $user->id, 'date' => $today],
-            $attendanceData
-        );
+        $attendance = Attendance::create($attendanceData);
 
         return response()->json([
             'message' => 'Successfully clocked in',
@@ -112,14 +111,12 @@ class AttendanceController extends Controller
 
         $attendance = Attendance::where('user_id', $user->id)
             ->whereDate('date', $today)
+            ->whereNotNull('clock_in')
+            ->whereNull('clock_out')
             ->first();
 
-        if (!$attendance || !$attendance->clock_in) {
-            return response()->json(['message' => 'Not clocked in today'], 400);
-        }
-
-        if ($attendance->clock_out) {
-            return response()->json(['message' => 'Already clocked out today'], 400);
+        if (!$attendance) {
+            return response()->json(['message' => 'No open entry found to clock out'], 400);
         }
 
         $attendanceData = [
@@ -186,12 +183,141 @@ class AttendanceController extends Controller
         $attendance = Attendance::where('user_id', $user->id)
             ->whereDate('date', $today)
             ->with(['clockInLocation', 'clockOutLocation'])
-            ->first();
+            ->get();
+
+        $openEntry = $attendance->whereNull('clock_out')->first();
+        $isClockedIn = $openEntry ? true : false;
+        $isClockedOut = $attendance->whereNotNull('clock_out')->isNotEmpty();
 
         return response()->json([
+            'date' => $today->toDateString(),
             'attendance' => $attendance,
-            'is_clocked_in' => $attendance && $attendance->clock_in && !$attendance->clock_out,
-            'is_clocked_out' => $attendance && $attendance->clock_out,
+            'is_clocked_in' => $isClockedIn,
+            'is_clocked_out' => $isClockedOut,
+            'open_entry' => $openEntry,
+        ]);
+    }
+
+    /**
+     * Get monthly attendance records for the current user
+     */
+    public function monthly(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        $month = $request->get('month', now()->month);
+        $year = $request->get('year', now()->year);
+
+        $startDate = Carbon::create($year, $month, 1)->startOfMonth();
+        $endDate = $startDate->copy()->endOfMonth();
+
+        // Get all attendance records for the month
+        $attendances = Attendance::where('user_id', $user->id)
+            ->whereBetween('date', [$startDate, $endDate])
+            ->with(['clockInLocation', 'clockOutLocation'])
+            ->orderBy('date')
+            ->orderBy('clock_in')
+            ->get();
+
+        // Get leave applications for the month
+        $leaveApplications = \App\Models\LeaveApplication::where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('start_date', [$startDate, $endDate])
+                    ->orWhereBetween('end_date', [$startDate, $endDate])
+                    ->orWhere(function ($q) use ($startDate, $endDate) {
+                        $q->where('start_date', '<=', $startDate)
+                          ->where('end_date', '>=', $endDate);
+                    });
+            })
+            ->with('leaveType')
+            ->get();
+
+        // Calculate working hours for each day
+        $monthlyData = [];
+        $currentDate = $startDate->copy();
+
+        while ($currentDate->lte($endDate)) {
+            $dateStr = $currentDate->toDateString();
+            $dayAttendances = $attendances->where('date', $dateStr);
+            
+            // Check if it's weekend
+            $isWeekend = $currentDate->isWeekend();
+            
+            // Check if it's a holiday (you can add holiday logic here)
+            $isHoliday = false; // Implement holiday checking logic
+            
+            // Check if on leave
+            $leaveApplication = $leaveApplications->first(function ($leave) use ($currentDate) {
+                return $currentDate->between($leave->start_date, $leave->end_date);
+            });
+
+            $totalWorkingHours = 0;
+            $entries = [];
+            $firstClockIn = null;
+            $lastClockOut = null;
+
+            foreach ($dayAttendances as $attendance) {
+                $entry = [
+                    'id' => $attendance->id,
+                    'clock_in' => $attendance->clock_in,
+                    'clock_out' => $attendance->clock_out,
+                    'status' => $attendance->status,
+                    'late_minutes' => $attendance->late_minutes,
+                    'early_minutes' => $attendance->early_minutes,
+                    'deduction_amount' => $attendance->deduction_amount,
+                    'clock_in_location' => $attendance->clockInLocation,
+                    'clock_out_location' => $attendance->clockOutLocation,
+                ];
+
+                if ($attendance->clock_in && $attendance->clock_out) {
+                    $workingHours = Carbon::parse($attendance->clock_in)->diffInHours(Carbon::parse($attendance->clock_out));
+                    $entry['working_hours'] = $workingHours;
+                    $totalWorkingHours += $workingHours;
+                }
+
+                $entries[] = $entry;
+
+                if (!$firstClockIn || $attendance->clock_in < $firstClockIn) {
+                    $firstClockIn = $attendance->clock_in;
+                }
+                if ($attendance->clock_out && (!$lastClockOut || $attendance->clock_out > $lastClockOut)) {
+                    $lastClockOut = $attendance->clock_out;
+                }
+            }
+
+            $monthlyData[] = [
+                'date' => $dateStr,
+                'day_name' => $currentDate->format('l'),
+                'is_weekend' => $isWeekend,
+                'is_holiday' => $isHoliday,
+                'is_on_leave' => $leaveApplication ? true : false,
+                'leave_type' => $leaveApplication ? $leaveApplication->leaveType->name : null,
+                'entries' => $entries,
+                'total_working_hours' => $totalWorkingHours,
+                'first_clock_in' => $firstClockIn,
+                'last_clock_out' => $lastClockOut,
+                'total_entries' => count($entries),
+            ];
+
+            $currentDate->addDay();
+        }
+
+        return response()->json([
+            'month' => $month,
+            'year' => $year,
+            'month_name' => $startDate->format('F'),
+            'data' => $monthlyData,
+            'summary' => [
+                'total_days' => $startDate->daysInMonth,
+                'working_days' => $startDate->copy()->startOfMonth()->diffInDaysFiltered(function ($date) {
+                    return !$date->isWeekend();
+                }, $endDate),
+                'weekend_days' => $startDate->copy()->startOfMonth()->diffInDaysFiltered(function ($date) {
+                    return $date->isWeekend();
+                }, $endDate),
+                'leave_days' => $leaveApplications->sum('days_count'),
+                'total_working_hours' => collect($monthlyData)->sum('total_working_hours'),
+            ]
         ]);
     }
 

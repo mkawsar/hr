@@ -23,6 +23,30 @@ class RoleResource extends Resource
     
     protected static ?int $navigationSort = 2;
 
+    public static function canViewAny(): bool
+    {
+        $user = auth()->user();
+        return $user && $user->isAdmin();
+    }
+
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+        return $user && $user->isAdmin();
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = auth()->user();
+        return $user && $user->isAdmin();
+    }
+
+    public static function canDelete($record): bool
+    {
+        $user = auth()->user();
+        return $user && $user->isAdmin();
+    }
+
     public static function form(Form $form): Form
     {
         return $form

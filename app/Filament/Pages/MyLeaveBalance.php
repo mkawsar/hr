@@ -2,8 +2,9 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\LeaveApplication;
+use App\Models\LeaveBalance;
 use App\Models\LeaveType;
+use App\Models\LeaveApplication;
 use Filament\Pages\Page;
 use Filament\Tables\Table;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -17,24 +18,33 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
+use Carbon\Carbon;
 
-class MyLeaveApplications extends Page implements HasTable
+class MyLeaveBalance extends Page implements HasTable
 {
     use InteractsWithTable;
 
-    protected static ?string $navigationIcon = 'heroicon-o-document';
-    protected static ?string $navigationLabel = 'My Leave Applications';
-    protected static ?string $title = 'My Leave Applications';
-    protected static string $view = 'filament.pages.my-leave-applications';
+    protected static ?string $navigationIcon = 'heroicon-o-squares-2x2';
+    protected static ?string $navigationLabel = 'My Leave Balance';
+    protected static ?string $title = 'My Leave Balance';
+    protected static string $view = 'filament.pages.my-leave-balance';
 
     protected static ?string $navigationGroup = 'Leave Management';
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 5;
+
+    public $selectedYear;
+
+    public function mount(): void
+    {
+        $this->selectedYear = now()->year;
+    }
 
     public function getTableQuery(): Builder
     {
-        return LeaveApplication::query()
+        return LeaveBalance::query()
             ->where('user_id', auth()->id())
-            ->with(['leaveType', 'approvedBy']);
+            ->where('year', $this->selectedYear)
+            ->with(['leaveType']);
     }
 
     public function table(Table $table): Table
@@ -44,52 +54,50 @@ class MyLeaveApplications extends Page implements HasTable
             ->columns([
                 TextColumn::make('leaveType.name')
                     ->label('Leave Type')
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('leaveType.code')
+                    ->label('Code')
                     ->badge()
                     ->color('primary'),
-                TextColumn::make('start_date')
-                    ->date()
-                    ->sortable(),
-                TextColumn::make('end_date')
-                    ->date()
-                    ->sortable(),
-                TextColumn::make('days_count')
-                    ->label('Days')
-                    ->numeric(),
-                TextColumn::make('status')
+                TextColumn::make('accrued')
+                    ->label('Accrued Days')
+                    ->numeric()
+                    ->description('Days earned this year'),
+                TextColumn::make('carry_forward')
+                    ->label('Carry Forward')
+                    ->numeric()
+                    ->color('info')
+                    ->description('Days from previous year'),
+                TextColumn::make('consumed')
+                    ->label('Availed Days')
+                    ->numeric()
+                    ->color('warning')
+                    ->description('Days taken this year'),
+                TextColumn::make('balance')
+                    ->label('Remaining Balance')
+                    ->numeric()
+                    ->color('success')
+                    ->description('Available days'),
+                TextColumn::make('deducted_days')
+                    ->label('Deducted Amount')
+                    ->getStateUsing(function (LeaveBalance $record): string {
+                        // Calculate deducted days (this could be from penalties, etc.)
+                        $deducted = 0; // You can implement deduction logic here
+                        return number_format($deducted, 2);
+                    })
+                    ->color('danger')
+                    ->description('Penalty deductions'),
+                TextColumn::make('leaveType.encashable')
+                    ->label('Encashable')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'pending' => 'warning',
-                        'approved' => 'success',
-                        'rejected' => 'danger',
-                        'cancelled' => 'gray',
-                    }),
-                TextColumn::make('applied_at')
-                    ->dateTime()
-                    ->label('Applied At')
-                    ->sortable(),
-                TextColumn::make('approvedBy.name')
-                    ->label('Approved By')
-                    ->placeholder('Not approved'),
-                TextColumn::make('approved_at')
-                    ->dateTime()
-                    ->label('Approved At')
-                    ->placeholder('Not approved'),
-            ])
-            ->actions([
-                Action::make('cancel')
-                    ->icon('heroicon-o-x-circle')
-                    ->color('gray')
-                    ->visible(fn (LeaveApplication $record): bool => $record->status === 'pending')
-                    ->requiresConfirmation()
-                    ->action(function (LeaveApplication $record) {
-                        $record->update(['status' => 'cancelled']);
-                        
-                        Notification::make()
-                            ->title('Leave Cancelled')
-                            ->body('Your leave application has been cancelled.')
-                            ->success()
-                            ->send();
-                    }),
+                    ->color(fn (bool $state): string => $state ? 'success' : 'gray')
+                    ->formatStateUsing(fn (bool $state): string => $state ? 'Yes' : 'No'),
+                TextColumn::make('leaveType.carry_forward_allowed')
+                    ->label('Carry Forward')
+                    ->badge()
+                    ->color(fn (bool $state): string => $state ? 'info' : 'gray')
+                    ->formatStateUsing(fn (bool $state): string => $state ? 'Yes' : 'No'),
             ])
             ->headerActions([
                 Action::make('apply_leave')
@@ -107,8 +115,8 @@ class MyLeaveApplications extends Page implements HasTable
                             ->afterStateUpdated(function ($state, callable $set, callable $get) {
                                 $endDate = $get('end_date');
                                 if ($state && $endDate) {
-                                    $start = \Carbon\Carbon::parse($state);
-                                    $end = \Carbon\Carbon::parse($endDate);
+                                    $start = Carbon::parse($state);
+                                    $end = Carbon::parse($endDate);
                                     $days = $start->diffInDays($end) + 1;
                                     $set('days_count', $days);
                                 }
@@ -119,13 +127,13 @@ class MyLeaveApplications extends Page implements HasTable
                             ->afterStateUpdated(function ($state, callable $set, callable $get) {
                                 $startDate = $get('start_date');
                                 if ($state && $startDate) {
-                                    $start = \Carbon\Carbon::parse($startDate);
-                                    $end = \Carbon\Carbon::parse($state);
+                                    $start = Carbon::parse($startDate);
+                                    $end = Carbon::parse($state);
                                     $days = $start->diffInDays($end) + 1;
                                     $set('days_count', $days);
                                 }
                             }),
-                        TextColumn::make('days_count')
+                        \Filament\Forms\Components\TextInput::make('days_count')
                             ->label('Number of Days')
                             ->disabled(),
                         Textarea::make('reason')
@@ -157,12 +165,30 @@ class MyLeaveApplications extends Page implements HasTable
                             ->send();
                     }),
             ])
-            ->defaultSort('applied_at', 'desc');
+            ->defaultSort('leaveType.name');
     }
 
     public static function canAccess(): bool
     {
         $user = auth()->user();
         return $user && ($user->isEmployee() || $user->isSupervisor());
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            \Filament\Actions\Action::make('change_year')
+                ->label('Change Year')
+                ->icon('heroicon-o-calendar')
+                ->form([
+                    Select::make('year')
+                        ->label('Year')
+                        ->options(array_combine(range(now()->year - 2, now()->year + 1), range(now()->year - 2, now()->year + 1)))
+                        ->default($this->selectedYear),
+                ])
+                ->action(function (array $data) {
+                    $this->selectedYear = $data['year'];
+                }),
+        ];
     }
 }
