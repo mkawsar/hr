@@ -6,11 +6,19 @@ use App\Models\LeaveApplication;
 use App\Models\LeaveBalance;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Illuminate\Support\Facades\Auth;
 
 class LeaveStatsWidget extends BaseWidget
 {
     protected function getStats(): array
     {
+        $user = Auth::user();
+        
+        // Only show company-wide leave stats to admins
+        if (!$user || !$user->isAdmin()) {
+            return [];
+        }
+
         $pendingLeaves = LeaveApplication::where('status', 'pending')->count();
         $approvedThisMonth = LeaveApplication::where('status', 'approved')
             ->whereMonth('approved_at', now()->month)
@@ -46,5 +54,11 @@ class LeaveStatsWidget extends BaseWidget
                 ->descriptionIcon('heroicon-o-chart-bar-square')
                 ->color('primary'),
         ];
+    }
+
+    public static function canView(): bool
+    {
+        $user = Auth::user();
+        return $user && $user->isAdmin();
     }
 }

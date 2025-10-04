@@ -7,19 +7,27 @@ use App\Models\User;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class AttendanceStatsWidget extends BaseWidget
 {
     protected function getStats(): array
     {
+        $user = Auth::user();
+        
+        // Only show company-wide attendance stats to admins
+        if (!$user || !$user->isAdmin()) {
+            return [];
+        }
+
         $today = now()->toDateString();
         
         // Today's attendance stats
-        $presentToday = Attendance::whereDate('date', $today)
+        $presentToday = Attendance::where('date', $today)
             ->where('status', 'present')
             ->count();
             
-        $lateToday = Attendance::whereDate('date', $today)
+        $lateToday = Attendance::where('date', $today)
             ->where('status', 'late')
             ->count();
             
@@ -52,5 +60,11 @@ class AttendanceStatsWidget extends BaseWidget
                 ->descriptionIcon('heroicon-o-users')
                 ->color('primary'),
         ];
+    }
+
+    public static function canView(): bool
+    {
+        $user = Auth::user();
+        return $user && $user->isAdmin();
     }
 }
