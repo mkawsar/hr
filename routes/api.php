@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\AttendanceEntryController;
 
 /*
 |--------------------------------------------------------------------------
@@ -31,5 +32,13 @@ Route::middleware('auth')->group(function () {
         Route::get('/locations', [AttendanceController::class, 'locations']);
         Route::get('/entries/{date}', [AttendanceController::class, 'getEntriesForDate']);
         Route::get('/day-details/{date}', [AttendanceController::class, 'getDayDetails']);
+    });
+    
+    // New attendance entry API routes
+    Route::prefix('attendance-entry')->group(function () {
+        Route::post('/clock-in', [AttendanceEntryController::class, 'clockIn']);
+        Route::post('/clock-out', [AttendanceEntryController::class, 'clockOut']);
+        Route::get('/today', [AttendanceEntryController::class, 'today']);
+        Route::get('/locations', [AttendanceEntryController::class, 'locations']);
     });
 });

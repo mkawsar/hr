@@ -16,6 +16,10 @@ class AttendanceEntry extends Model
         'date',
         'clock_in',
         'clock_out',
+        'clock_in_latitude',
+        'clock_in_longitude',
+        'clock_out_latitude',
+        'clock_out_longitude',
         'clock_in_location_id',
         'clock_out_location_id',
         'working_hours',
@@ -30,6 +34,10 @@ class AttendanceEntry extends Model
         'date' => 'date',
         'clock_in' => 'datetime',
         'clock_out' => 'datetime',
+        'clock_in_latitude' => 'decimal:8',
+        'clock_in_longitude' => 'decimal:8',
+        'clock_out_latitude' => 'decimal:8',
+        'clock_out_longitude' => 'decimal:8',
         'working_hours' => 'decimal:2',
     ];
 
