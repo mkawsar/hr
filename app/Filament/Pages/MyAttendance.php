@@ -74,12 +74,57 @@ class MyAttendance extends Page implements HasTable
                 TextColumn::make('total_entries')
                     ->label('Entries')
                     ->getStateUsing(fn (DailyAttendance $record) => $record->total_entries . ' entries'),
-                TextColumn::make('details')
-                    ->label('Details')
-                    ->formatStateUsing(fn () => 'View')
-                    ->action(function (DailyAttendance $record) {
-                        $this->showDayDetails($record->date->format('Y-m-d'));
-                    }),
+            ])
+            ->actions([
+                \Filament\Tables\Actions\Action::make('view_details')
+                    ->label('View')
+                    ->icon('heroicon-o-eye')
+                    ->color('primary')
+                    ->visible(fn (DailyAttendance $record) => $record->total_entries > 0)
+                    ->modalContent(function (DailyAttendance $record) {
+                        $entries = $record->entries()->orderBy('clock_in')->get();
+                        
+                        $html = '<div class="space-y-4">';
+                        
+                        // Day Summary
+                        $html .= '<div class="bg-blue-50 p-4 rounded-lg">';
+                        $html .= '<h4 class="font-semibold text-blue-900 mb-2">Day Summary</h4>';
+                        $html .= '<div class="grid grid-cols-2 gap-2 text-sm">';
+                        $html .= '<div><strong>Date:</strong> ' . $record->date->format('M d, Y') . '</div>';
+                        $html .= '<div><strong>Total Entries:</strong> ' . $record->total_entries . '</div>';
+                        $html .= '<div><strong>First Clock In:</strong> ' . ($record->first_clock_in ? \Carbon\Carbon::parse($record->first_clock_in)->format('H:i:s') : '-') . '</div>';
+                        $html .= '<div><strong>Last Clock Out:</strong> ' . ($record->last_clock_out ? \Carbon\Carbon::parse($record->last_clock_out)->format('H:i:s') : '-') . '</div>';
+                        $html .= '<div><strong>Total Hours:</strong> ' . number_format($record->total_working_hours, 2) . 'h</div>';
+                        $html .= '<div><strong>Status:</strong> ' . ucwords(str_replace('_', ' ', $record->status)) . '</div>';
+                        $html .= '</div>';
+                        $html .= '</div>';
+                        
+                        // All Entries
+                        if ($entries->count() > 0) {
+                            $html .= '<h4 class="font-semibold text-gray-900 mb-2">All Entries</h4>';
+                            foreach ($entries as $index => $entry) {
+                                $html .= '<div class="border border-gray-200 p-3 rounded-lg">';
+                                $html .= '<h5 class="font-medium text-gray-900 mb-2">Entry ' . ($index + 1) . '</h5>';
+                                $html .= '<div class="grid grid-cols-2 gap-2 text-sm">';
+                                $html .= '<div><strong>Clock In:</strong> ' . ($entry->clock_in ? \Carbon\Carbon::parse($entry->clock_in)->format('H:i:s') : '-') . '</div>';
+                                $html .= '<div><strong>Clock Out:</strong> ' . ($entry->clock_out ? \Carbon\Carbon::parse($entry->clock_out)->format('H:i:s') : '-') . '</div>';
+                                $html .= '<div><strong>Working Hours:</strong> ' . ($entry->working_hours ? number_format($entry->working_hours, 2) . 'h' : '-') . '</div>';
+                                $html .= '<div><strong>Status:</strong> ' . ucwords(str_replace('_', ' ', $entry->entry_status)) . '</div>';
+                                $html .= '<div><strong>Source:</strong> ' . ucwords($entry->source) . '</div>';
+                                if ($entry->notes) {
+                                    $html .= '<div class="col-span-2"><strong>Notes:</strong> ' . $entry->notes . '</div>';
+                                }
+                                $html .= '</div>';
+                                $html .= '</div>';
+                            }
+                        }
+                        
+                        $html .= '</div>';
+                        
+                        return new \Illuminate\Support\HtmlString($html);
+                    })
+                    ->modalHeading(fn (DailyAttendance $record) => 'Day Details - ' . $record->date->format('M d, Y'))
+                    ->modalWidth('4xl'),
             ])
             ->defaultSort('date', 'desc');
     }
@@ -326,9 +371,104 @@ class MyAttendance extends Page implements HasTable
             ->first();
     }
 
-    private function showDayDetails(string $date): void
+    public function getMonthlyWorkingHours(): float
     {
-        // This will be handled by the JavaScript in the view
-        $this->dispatch('show-day-details', ['date' => $date]);
+        $user = auth()->user();
+        if (!$user) return 0;
+
+        $currentMonth = now()->format('Y-m');
+        
+        return DailyAttendance::where('user_id', $user->id)
+            ->whereRaw("DATE_FORMAT(date, '%Y-%m') = ?", [$currentMonth])
+            ->sum('total_working_hours') ?? 0;
+    }
+
+    public function getMonthlyPresentDays(): int
+    {
+        $user = auth()->user();
+        if (!$user) return 0;
+
+        $currentMonth = now()->format('Y-m');
+        
+        return DailyAttendance::where('user_id', $user->id)
+            ->whereRaw("DATE_FORMAT(date, '%Y-%m') = ?", [$currentMonth])
+            ->whereIn('status', ['present', 'late_in', 'early_out', 'late_in_early_out', 'late', 'early_leave', 'half_day'])
+            ->count();
+    }
+
+    public function getMonthlyLateDays(): int
+    {
+        $user = auth()->user();
+        if (!$user) return 0;
+
+        $currentMonth = now()->format('Y-m');
+        
+        return DailyAttendance::where('user_id', $user->id)
+            ->whereRaw("DATE_FORMAT(date, '%Y-%m') = ?", [$currentMonth])
+            ->whereIn('status', ['late_in', 'late_in_early_out', 'late'])
+            ->count();
+    }
+
+    public function getMonthlyAbsentDays(): int
+    {
+        $user = auth()->user();
+        if (!$user) return 0;
+
+        $currentMonth = now()->format('Y-m');
+        
+        return DailyAttendance::where('user_id', $user->id)
+            ->whereRaw("DATE_FORMAT(date, '%Y-%m') = ?", [$currentMonth])
+            ->where('status', 'absent')
+            ->count();
+    }
+
+    public function getMonthlyLeaveDays(): int
+    {
+        $user = auth()->user();
+        if (!$user) return 0;
+
+        $currentMonth = now()->format('Y-m');
+        
+        return DailyAttendance::where('user_id', $user->id)
+            ->whereRaw("DATE_FORMAT(date, '%Y-%m') = ?", [$currentMonth])
+            ->where('status', 'leave')
+            ->count();
+    }
+
+    public function getMonthlyHolidayDays(): int
+    {
+        $user = auth()->user();
+        if (!$user) return 0;
+
+        $currentMonth = now()->format('Y-m');
+        
+        return DailyAttendance::where('user_id', $user->id)
+            ->whereRaw("DATE_FORMAT(date, '%Y-%m') = ?", [$currentMonth])
+            ->where('status', 'holiday')
+            ->count();
+    }
+
+    public function getMonthlyLateMinutes(): int
+    {
+        $user = auth()->user();
+        if (!$user) return 0;
+
+        $currentMonth = now()->format('Y-m');
+        
+        return DailyAttendance::where('user_id', $user->id)
+            ->whereRaw("DATE_FORMAT(date, '%Y-%m') = ?", [$currentMonth])
+            ->sum('total_late_minutes') ?? 0;
+    }
+
+    public function getMonthlyEarlyMinutes(): int
+    {
+        $user = auth()->user();
+        if (!$user) return 0;
+
+        $currentMonth = now()->format('Y-m');
+        
+        return DailyAttendance::where('user_id', $user->id)
+            ->whereRaw("DATE_FORMAT(date, '%Y-%m') = ?", [$currentMonth])
+            ->sum('total_early_minutes') ?? 0;
     }
 }
