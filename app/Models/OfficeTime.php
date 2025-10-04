@@ -73,6 +73,10 @@ class OfficeTime extends Model
      */
     public function getWorkingDaysFormattedAttribute(): string
     {
+        if (!$this->working_days || !is_array($this->working_days)) {
+            return 'Not Set';
+        }
+
         $dayNames = [
             'monday' => 'Mon',
             'tuesday' => 'Tue',
