@@ -92,6 +92,12 @@ A comprehensive HR and attendance management system built with Laravel 12 and Fi
    php artisan serve
    ```
 
+## 🚀 System Access
+
+- **Main URL**: http://localhost:8000 (redirects to login page)
+- **Admin Panel**: http://localhost:8000/admin
+- **API Base URL**: http://localhost:8000/api
+
 ## 🔐 Default Login Credentials
 
 - **Admin**: admin@hr.com / password

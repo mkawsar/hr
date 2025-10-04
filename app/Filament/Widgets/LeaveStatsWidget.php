@@ -28,22 +28,22 @@ class LeaveStatsWidget extends BaseWidget
         return [
             Stat::make('Pending Leave Requests', $pendingLeaves)
                 ->description('Awaiting approval')
-                ->descriptionIcon('heroicon-m-clock')
+                ->descriptionIcon('heroicon-o-clock')
                 ->color('warning'),
             
             Stat::make('Approved This Month', $approvedThisMonth)
                 ->description('Leave applications approved')
-                ->descriptionIcon('heroicon-m-check-circle')
+                ->descriptionIcon('heroicon-o-check-circle')
                 ->color('success'),
             
             Stat::make('Total Leave Days', number_format($totalLeaveDays, 1))
                 ->description('Days taken this month')
-                ->descriptionIcon('heroicon-m-calendar-days')
+                ->descriptionIcon('heroicon-o-calendar')
                 ->color('info'),
             
             Stat::make('Average Leave Duration', number_format($averageLeaveDays ?? 0, 1))
                 ->description('Days per application')
-                ->descriptionIcon('heroicon-m-chart-bar')
+                ->descriptionIcon('heroicon-o-chart-bar-square')
                 ->color('primary'),
         ];
     }

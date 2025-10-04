@@ -19,7 +19,7 @@ class TeamLeaveApprovals extends Page implements HasTable
 {
     use InteractsWithTable;
 
-    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
+    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document';
     protected static ?string $navigationLabel = 'Team Leave Approvals';
     protected static ?string $title = 'Team Leave Approvals';
     protected static string $view = 'filament.pages.team-leave-approvals';
@@ -122,7 +122,7 @@ class TeamLeaveApprovals extends Page implements HasTable
                             ->send();
                     }),
                 Action::make('reject')
-                    ->icon('heroicon-o-x-mark')
+                    ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->requiresConfirmation()
                     ->form([

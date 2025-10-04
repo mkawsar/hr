@@ -22,7 +22,7 @@ class MyLeaveApplications extends Page implements HasTable
 {
     use InteractsWithTable;
 
-    protected static ?string $navigationIcon = 'heroicon-o-document-text';
+    protected static ?string $navigationIcon = 'heroicon-o-document';
     protected static ?string $navigationLabel = 'My Leave Applications';
     protected static ?string $title = 'My Leave Applications';
     protected static string $view = 'filament.pages.my-leave-applications';
@@ -77,7 +77,7 @@ class MyLeaveApplications extends Page implements HasTable
             ])
             ->actions([
                 Action::make('cancel')
-                    ->icon('heroicon-o-x-mark')
+                    ->icon('heroicon-o-x-circle')
                     ->color('gray')
                     ->visible(fn (LeaveApplication $record): bool => $record->status === 'pending')
                     ->requiresConfirmation()

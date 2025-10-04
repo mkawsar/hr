@@ -21,22 +21,22 @@ class StatsOverview extends BaseWidget
         return [
             Stat::make('Total Employees', $totalEmployees)
                 ->description('All employees in the system')
-                ->descriptionIcon('heroicon-m-users')
+                ->descriptionIcon('heroicon-o-users')
                 ->color('primary'),
             
             Stat::make('Active Employees', $activeEmployees)
                 ->description('Currently active employees')
-                ->descriptionIcon('heroicon-m-user-check')
+                ->descriptionIcon('heroicon-o-check-circle')
                 ->color('success'),
             
             Stat::make('Present Today', $presentToday)
                 ->description('Employees present today')
-                ->descriptionIcon('heroicon-m-calendar-days')
+                ->descriptionIcon('heroicon-o-calendar')
                 ->color('info'),
             
             Stat::make('Pending Leave Requests', $pendingLeaves)
                 ->description('Awaiting approval')
-                ->descriptionIcon('heroicon-m-clock')
+                ->descriptionIcon('heroicon-o-clock')
                 ->color('warning'),
         ];
     }

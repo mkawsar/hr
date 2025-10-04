@@ -34,22 +34,22 @@ class AttendanceStatsWidget extends BaseWidget
         return [
             Stat::make('Present Today', $presentToday)
                 ->description('Employees present today')
-                ->descriptionIcon('heroicon-m-check-circle')
+                ->descriptionIcon('heroicon-o-check-circle')
                 ->color('success'),
             
             Stat::make('Late Today', $lateToday)
                 ->description('Employees late today')
-                ->descriptionIcon('heroicon-m-clock')
+                ->descriptionIcon('heroicon-o-clock')
                 ->color('warning'),
             
             Stat::make('Absent Today', $absentToday)
                 ->description('Employees absent today')
-                ->descriptionIcon('heroicon-m-x-circle')
+                ->descriptionIcon('heroicon-o-x-circle')
                 ->color('danger'),
             
             Stat::make('Total Active Employees', $totalActiveEmployees)
                 ->description('All active employees')
-                ->descriptionIcon('heroicon-m-users')
+                ->descriptionIcon('heroicon-o-users')
                 ->color('primary'),
         ];
     }

@@ -17,7 +17,7 @@ class LeaveApplicationResource extends Resource
 {
     protected static ?string $model = LeaveApplication::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-document-text';
+    protected static ?string $navigationIcon = 'heroicon-o-document';
     
     protected static ?string $navigationGroup = 'Leave Management';
     
@@ -256,7 +256,7 @@ class LeaveApplicationResource extends Resource
                         ]);
                     }),
                 Tables\Actions\Action::make('reject')
-                    ->icon('heroicon-o-x-mark')
+                    ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->visible(fn (LeaveApplication $record): bool => 
                         $record->status === 'pending' && auth()->user()->canApproveLeave($record)
