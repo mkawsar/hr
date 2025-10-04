@@ -11,11 +11,6 @@
                     </span>
                 </div>
             </div>
-            
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                View your attendance records grouped by date. Each row shows a summary for one day. Click "View" to see all time entries for that day.
-            </p>
-            
             {{ $this->table }}
         </div>
 
@@ -152,7 +147,7 @@
             </div>
             
             <!-- Secondary Metrics -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
                 <div class="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-4 rounded-lg border border-purple-200 dark:border-purple-700">
                     <div class="flex items-center justify-between">
                         <div>
@@ -185,7 +180,7 @@
             </div>
             
             <!-- Summary Stats -->
-            <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <div class="mt-6 p-6 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <div class="flex items-center justify-between text-sm">
                     <div class="text-gray-600 dark:text-gray-300">
                         <span class="font-medium">Total Working Days:</span> {{ $totalWorkingDays }}
