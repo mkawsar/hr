@@ -61,6 +61,12 @@ class MyAttendance extends Page implements HasTable
                     ->date()
                     ->sortable()
                     ->label('Date'),
+                TextColumn::make('day_name')
+                    ->label('Day')
+                    ->getStateUsing(function ($record) {
+                        $date = \Carbon\Carbon::parse($record->date);
+                        return $date->format('l'); // Monday, Tuesday, Wednesday, etc.
+                    }),
                 TextColumn::make('day_status')
                     ->label('Day Status')
                     ->badge()
@@ -195,8 +201,7 @@ class MyAttendance extends Page implements HasTable
                         
                         // Check if it's a holiday
                         if (\App\Models\Holiday::isHoliday($date)) {
-                            $holiday = \App\Models\Holiday::getHoliday($date);
-                            return $holiday ? $holiday->name : 'Holiday';
+                            return 'Holiday';
                         }
                         
                         // Check if it's a working day based on office time
@@ -208,7 +213,7 @@ class MyAttendance extends Page implements HasTable
                         }
                         
                         if (!$isWorkingDay) {
-                            return $date->format('l'); // Friday, Saturday, or non-working day
+                            return 'Weekend';
                         }
                         
                         // Check if on leave
@@ -250,7 +255,7 @@ class MyAttendance extends Page implements HasTable
                         
                         // Check if it's a holiday
                         if (\App\Models\Holiday::isHoliday($date)) {
-                            return 'danger';
+                            return 'danger'; // Red for holiday
                         }
                         
                         // Check if it's a working day based on office time
@@ -262,7 +267,7 @@ class MyAttendance extends Page implements HasTable
                         }
                         
                         if (!$isWorkingDay) {
-                            return 'warning';
+                            return 'warning'; // Yellow for weekend
                         }
                         
                         // Check if on leave
@@ -285,15 +290,15 @@ class MyAttendance extends Page implements HasTable
                         
                         // Show attendance status colors for working days with complete attendance
                         return match ($record->status) {
-                            'full_present' => 'success',
-                            'late_in' => 'warning',
-                            'early_out' => 'warning',
-                            'late_in_early_out' => 'danger',
-                            'present' => 'success',
-                            'late' => 'danger',
-                            'early_leave' => 'danger',
-                            'absent' => 'danger',
-                            'half_day' => 'info',
+                            'full_present' => 'success', // Green for all full present days
+                            'late_in' => 'warning', // Yellow for all late/early days
+                            'early_out' => 'warning', // Yellow for all late/early days
+                            'late_in_early_out' => 'warning', // Yellow for all late/early days
+                            'present' => 'success', // Green for all present days
+                            'late' => 'warning', // Yellow for all late/early days
+                            'early_leave' => 'warning', // Yellow for all late/early days
+                            'absent' => 'danger', // Red for all absent days
+                            'half_day' => 'info', // Blue for half days
                             default => 'gray',
                         };
                     }),
