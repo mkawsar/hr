@@ -15,12 +15,12 @@ use App\Http\Controllers\Api\AttendanceController;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+Route::middleware('auth')->get('/user', function (Request $request) {
     return $request->user();
 });
 
 // Attendance API routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth')->group(function () {
     Route::prefix('attendance')->group(function () {
         Route::post('/clock-in', [AttendanceController::class, 'clockIn']);
         Route::post('/clock-out', [AttendanceController::class, 'clockOut']);
@@ -29,5 +29,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/history', [AttendanceController::class, 'history']);
         Route::get('/statistics', [AttendanceController::class, 'statistics']);
         Route::get('/locations', [AttendanceController::class, 'locations']);
+        Route::get('/entries/{date}', [AttendanceController::class, 'getEntriesForDate']);
+        Route::get('/day-details/{date}', [AttendanceController::class, 'getDayDetails']);
     });
 });

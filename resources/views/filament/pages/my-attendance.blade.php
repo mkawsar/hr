@@ -13,7 +13,7 @@
             </div>
             
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                View your attendance records, working hours, and apply for leave. You can have multiple entries per day.
+                View your attendance records grouped by date. Each row shows a summary for one day. Click "View" to see all time entries for that day.
             </p>
             
             {{ $this->table }}
@@ -44,7 +44,7 @@
                 $totalWorkingDays = 0;
                 
                 foreach ($monthlyData as $record) {
-                    $date = \Carbon\Carbon::parse($record->date);
+                    $date = $record->date;
                     $user = auth()->user();
                     
                     // Check if it's a holiday
@@ -78,21 +78,23 @@
                         $totalWorkingDays++;
                         
                         // Count as present only if they have actual check in and check out
-                        if ($record->clock_in && $record->clock_out) {
+                        $firstEntry = $record->entries->where('clock_in', '!=', null)->first();
+                        $lastEntry = $record->entries->where('clock_out', '!=', null)->last();
+                        
+                        if ($firstEntry && $lastEntry) {
                             $presentDays++;
-                            $totalMinutes = \Carbon\Carbon::parse($record->clock_in)->diffInMinutes(\Carbon\Carbon::parse($record->clock_out));
-                            $totalWorkingHours += $totalMinutes / 60;
+                            $totalWorkingHours += $record->total_working_hours ?? 0;
                         } else {
                             $absentDays++;
                         }
                         
-                        // Count as late days for late in, early out, or late + early
-                        if (in_array($record->status, ['late_in', 'early_out', 'late_in_early_out'])) {
+                        // Count as late days based on status
+                        if (in_array($record->status, ['late_in', 'early_out', 'late_in_early_out', 'late', 'early_leave'])) {
                             $lateDays++;
                         }
                         
-                        $totalLateMinutes += $record->late_minutes ?? 0;
-                        $totalEarlyMinutes += $record->early_minutes ?? 0;
+                        $totalLateMinutes += $record->total_late_minutes ?? 0;
+                        $totalEarlyMinutes += $record->total_early_minutes ?? 0;
                     }
                 }
                 
@@ -197,5 +199,218 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Modal for showing day details -->
+        <div id="dayDetailsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+            <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white dark:bg-gray-800">
+                <div class="mt-3">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white" id="modalTitle">
+                            Day Details
+                        </h3>
+                        <button onclick="closeDayDetailsModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="dayDetailsContent" class="space-y-4">
+                        <!-- Day details will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </x-filament-panels::page>
+
+<script>
+function showDayDetails(date) {
+    // Show modal
+    document.getElementById('dayDetailsModal').classList.remove('hidden');
+    document.getElementById('modalTitle').textContent = 'Day Details - ' + date;
+    
+    // Load day details via AJAX
+    fetch(`/attendance/day-details/${date}`, {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin'
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const content = document.getElementById('dayDetailsContent');
+            content.innerHTML = '';
+            
+            if (data.entries && data.entries.length > 0) {
+                // Create day details display with all time entries
+                let entriesHtml = '';
+                
+                // Summary section
+                const summaryHtml = `
+                    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4">
+                        <h4 class="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">Day Summary</h4>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="text-center">
+                                <div class="text-lg font-semibold text-blue-900 dark:text-blue-100">${data.summary.total_entries}</div>
+                                <div class="text-xs text-blue-600 dark:text-blue-300">Total Entries</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-lg font-semibold text-blue-900 dark:text-blue-100">${data.summary.first_clock_in || '-'}</div>
+                                <div class="text-xs text-blue-600 dark:text-blue-300">First In</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-lg font-semibold text-blue-900 dark:text-blue-100">${data.summary.last_clock_out || '-'}</div>
+                                <div class="text-xs text-blue-600 dark:text-blue-300">Last Out</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-lg font-semibold text-blue-900 dark:text-blue-100">${data.summary.total_working_hours || '-'}</div>
+                                <div class="text-xs text-blue-600 dark:text-blue-300">Total Hours</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Individual entries section
+                entriesHtml += `
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                        <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">All Time Entries</h4>
+                        <div class="space-y-3">
+                `;
+                
+                data.entries.forEach((entry, index) => {
+                    const entryColor = getEntryTypeColor(entry.entry_type);
+                    entriesHtml += `
+                        <div class="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center space-x-2">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${entryColor}">Entry ${index + 1}</span>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">${entry.entry_type}</span>
+                                </div>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">${entry.created_at}</span>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                <div>
+                                    <span class="text-gray-600 dark:text-gray-400">Clock In:</span>
+                                    <div class="font-medium text-gray-900 dark:text-white">${entry.clock_in || '-'}</div>
+                                </div>
+                                <div>
+                                    <span class="text-gray-600 dark:text-gray-400">Clock Out:</span>
+                                    <div class="font-medium text-gray-900 dark:text-white">${entry.clock_out || '-'}</div>
+                                </div>
+                                <div>
+                                    <span class="text-gray-600 dark:text-gray-400">Hours:</span>
+                                    <div class="font-medium text-gray-900 dark:text-white">${entry.working_hours || '-'}</div>
+                                </div>
+                                <div>
+                                    <span class="text-gray-600 dark:text-gray-400">Status:</span>
+                                    <div class="font-medium text-gray-900 dark:text-white">${entry.status || '-'}</div>
+                                </div>
+                            </div>
+                            ${entry.late_minutes > 0 || entry.early_minutes > 0 ? `
+                            <div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                <div class="flex space-x-4 text-xs">
+                                    ${entry.late_minutes > 0 ? `<span class="text-orange-600 dark:text-orange-400">Late: ${entry.late_minutes} min</span>` : ''}
+                                    ${entry.early_minutes > 0 ? `<span class="text-red-600 dark:text-red-400">Early: ${entry.early_minutes} min</span>` : ''}
+                                </div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    `;
+                });
+                
+                entriesHtml += `
+                        </div>
+                    </div>
+                `;
+                
+                // Leave information if applicable
+                let leaveInfoHtml = '';
+                if (data.summary.leave_info) {
+                    leaveInfoHtml = `
+                        <div class="mt-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
+                            <h4 class="text-sm font-medium text-yellow-900 dark:text-yellow-100 mb-2">Leave Information</h4>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-yellow-700 dark:text-yellow-300">Leave Type:</span>
+                                    <span class="text-sm font-medium text-yellow-900 dark:text-yellow-100">${data.summary.leave_info.type}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-yellow-700 dark:text-yellow-300">Reason:</span>
+                                    <span class="text-sm font-medium text-yellow-900 dark:text-yellow-100">${data.summary.leave_info.reason}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-yellow-700 dark:text-yellow-300">Status:</span>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">${data.summary.leave_info.status}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                content.innerHTML = summaryHtml + entriesHtml + leaveInfoHtml;
+            } else {
+                content.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center py-4">No attendance records found for this date.</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading day details:', error);
+            document.getElementById('dayDetailsContent').innerHTML = `
+                <div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+                    <h4 class="text-sm font-medium text-red-900 dark:text-red-100 mb-2">Error Loading Day Details</h4>
+                    <p class="text-sm text-red-700 dark:text-red-300">${error.message}</p>
+                    <p class="text-xs text-red-600 dark:text-red-400 mt-2">Please try refreshing the page and try again.</p>
+                </div>
+            `;
+        });
+}
+
+function closeDayDetailsModal() {
+    document.getElementById('dayDetailsModal').classList.add('hidden');
+}
+
+function getStatusBadgeColor(status) {
+    switch(status) {
+        case 'full_present':
+        case 'present':
+            return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+        case 'late_in':
+        case 'early_out':
+        case 'late_in_early_out':
+            return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+        case 'absent':
+            return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+        default:
+            return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+    }
+}
+
+function getEntryTypeColor(entryType) {
+    switch(entryType) {
+        case 'Complete Entry':
+            return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+        case 'Clock In Only':
+            return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+        case 'Clock Out Only':
+            return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
+        case 'No Time Data':
+            return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+        default:
+            return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+    }
+}
+
+// Close modal when clicking outside
+document.getElementById('dayDetailsModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeDayDetailsModal();
+    }
+});
+</script>

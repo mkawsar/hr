@@ -35,7 +35,7 @@ class AttendanceController extends Controller
 
         // Check if there's an open entry (clocked in but not clocked out)
         $openEntry = Attendance::where('user_id', $user->id)
-            ->whereDate('date', $today)
+            ->whereDate('date', $today->format('Y-m-d'))
             ->whereNotNull('clock_in')
             ->whereNull('clock_out')
             ->first();
@@ -115,7 +115,7 @@ class AttendanceController extends Controller
         $today = Carbon::today();
 
         $attendance = Attendance::where('user_id', $user->id)
-            ->whereDate('date', $today)
+            ->whereDate('date', $today->format('Y-m-d'))
             ->whereNotNull('clock_in')
             ->whereNull('clock_out')
             ->first();
@@ -196,7 +196,7 @@ class AttendanceController extends Controller
         $today = Carbon::today();
 
         $attendance = Attendance::where('user_id', $user->id)
-            ->whereDate('date', $today)
+            ->whereDate('date', $today->format('Y-m-d'))
             ->with(['clockInLocation', 'clockOutLocation'])
             ->get();
 
@@ -385,5 +385,173 @@ class AttendanceController extends Controller
             ->first();
 
         return response()->json($stats);
+    }
+
+    /**
+     * Get detailed information for a specific day with all time entries
+     */
+    public function getDayDetails($date)
+    {
+        $user = auth()->user();
+        $dateObj = Carbon::parse($date);
+        
+        // Get daily attendance record for this date
+        $dailyAttendance = \App\Models\DailyAttendance::where('user_id', $user->id)
+            ->whereDate('date', $dateObj->format('Y-m-d'))
+            ->with(['entries' => function ($query) {
+                $query->orderBy('clock_in')->orderBy('created_at');
+            }])
+            ->first();
+        
+        if (!$dailyAttendance) {
+            return response()->json([
+                'date' => $date,
+                'entries' => [],
+                'summary' => [
+                    'date' => $date,
+                    'day_name' => $dateObj->format('l'),
+                    'total_entries' => 0,
+                    'first_clock_in' => null,
+                    'last_clock_out' => null,
+                    'total_working_hours' => '0.00h',
+                    'total_late_minutes' => 0,
+                    'total_early_minutes' => 0,
+                    'is_holiday' => Holiday::isHoliday($dateObj),
+                    'is_working_day' => $user->officeTime ? $user->officeTime->isWorkingDate($dateObj) : !$dateObj->isWeekend(),
+                    'leave_info' => null,
+                ],
+                'message' => 'No attendance records found for this date'
+            ]);
+        }
+        
+        // Check if it's a holiday
+        $isHoliday = Holiday::isHoliday($dateObj);
+        
+        // Check if it's a working day
+        $isWorkingDay = true;
+        if ($user->officeTime) {
+            $isWorkingDay = $user->officeTime->isWorkingDate($dateObj);
+        } else {
+            $isWorkingDay = !$dateObj->isWeekend();
+        }
+        
+        // Check if on leave
+        $leaveApplication = \App\Models\LeaveApplication::where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->where(function ($query) use ($dateObj) {
+                $query->whereDate('start_date', '<=', $dateObj)
+                    ->whereDate('end_date', '>=', $dateObj);
+            })
+            ->with('leaveType')
+            ->first();
+        
+        // Prepare all time entries
+        $entries = [];
+        
+        foreach ($dailyAttendance->entries as $entry) {
+            $entryData = [
+                'id' => $entry->id,
+                'clock_in' => $entry->clock_in ? $entry->clock_in->format('H:i:s') : null,
+                'clock_out' => $entry->clock_out ? $entry->clock_out->format('H:i:s') : null,
+                'entry_status' => $entry->entry_status,
+                'late_minutes' => $entry->late_minutes ?? 0,
+                'early_minutes' => $entry->early_minutes ?? 0,
+                'working_hours' => $entry->working_hours ? number_format($entry->working_hours, 2) . 'h' : null,
+                'source' => $entry->source ?? 'Manual',
+                'created_at' => $entry->created_at->format('H:i:s'),
+                'entry_type' => $this->getEntryType($entry),
+                'clock_in_location' => $entry->clockInLocation?->name,
+                'clock_out_location' => $entry->clockOutLocation?->name,
+                'notes' => $entry->notes,
+            ];
+            
+            $entries[] = $entryData;
+        }
+        
+        // Prepare summary information
+        $summary = [
+            'date' => $date,
+            'day_name' => $dateObj->format('l'),
+            'total_entries' => $dailyAttendance->total_entries,
+            'first_clock_in' => $dailyAttendance->entries->where('clock_in', '!=', null)->first() ? 
+                $dailyAttendance->entries->where('clock_in', '!=', null)->first()->clock_in->format('H:i') : null,
+            'last_clock_out' => $dailyAttendance->entries->where('clock_out', '!=', null)->last() ? 
+                $dailyAttendance->entries->where('clock_out', '!=', null)->last()->clock_out->format('H:i') : null,
+            'total_working_hours' => number_format($dailyAttendance->total_working_hours, 2) . 'h',
+            'total_late_minutes' => $dailyAttendance->total_late_minutes,
+            'total_early_minutes' => $dailyAttendance->total_early_minutes,
+            'is_holiday' => $isHoliday,
+            'is_working_day' => $isWorkingDay,
+            'leave_info' => null,
+        ];
+        
+        // Add leave information if applicable
+        if ($leaveApplication) {
+            $summary['leave_info'] = [
+                'type' => $leaveApplication->leaveType->name,
+                'reason' => $leaveApplication->reason,
+                'status' => ucfirst($leaveApplication->status),
+                'start_date' => $leaveApplication->start_date,
+                'end_date' => $leaveApplication->end_date,
+            ];
+        }
+        
+        return response()->json([
+            'date' => $date,
+            'entries' => $entries,
+            'summary' => $summary,
+        ]);
+    }
+    
+    /**
+     * Get entry type description
+     */
+    private function getEntryType($entry)
+    {
+        return match ($entry->entry_status) {
+            'complete' => 'Complete Entry',
+            'clock_in_only' => 'Clock In Only',
+            'clock_out_only' => 'Clock Out Only',
+            'incomplete' => 'Incomplete Entry',
+            default => 'Unknown',
+        };
+    }
+    
+    /**
+     * Get display status based on various conditions
+     */
+    private function getStatusDisplay($status, $isHoliday, $isWorkingDay, $leaveApplication)
+    {
+        if ($isHoliday) {
+            return 'Holiday';
+        }
+        
+        if (!$isWorkingDay) {
+            return 'Weekend';
+        }
+        
+        if ($leaveApplication) {
+            return $leaveApplication->leaveType->name;
+        }
+        
+        // Check for incomplete attendance
+        $attendance = Attendance::where('user_id', auth()->id())
+            ->whereDate('date', \Carbon\Carbon::parse(request()->route('date'))->format('Y-m-d'))
+            ->first();
+            
+        if ($attendance && ((!$attendance->clock_in && $attendance->clock_out) || ($attendance->clock_in && !$attendance->clock_out))) {
+            return 'Absent';
+        }
+        
+        // Show attendance status
+        return match ($status) {
+            'full_present' => 'Full Present',
+            'late_in' => 'Late In',
+            'early_out' => 'Early Out',
+            'late_in_early_out' => 'Late In + Early Out',
+            'present' => 'Present',
+            'absent' => 'Absent',
+            default => ucfirst(str_replace('_', ' ', $status)),
+        };
     }
 }
