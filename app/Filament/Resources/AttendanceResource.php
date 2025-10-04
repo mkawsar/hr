@@ -92,13 +92,17 @@ class AttendanceResource extends Resource
                             ->required(),
                         Forms\Components\Select::make('status')
                             ->options([
-                                'present' => 'Present',
+                                'full_present' => 'Full Present',
+                                'late_in' => 'Late In',
+                                'early_out' => 'Early Out',
+                                'late_in_early_out' => 'Late In + Early Out',
+                                'present' => 'Present (Legacy)',
+                                'late' => 'Late (Legacy)',
+                                'early_leave' => 'Early Leave (Legacy)',
                                 'absent' => 'Absent',
-                                'late' => 'Late',
-                                'early_leave' => 'Early Leave',
                                 'half_day' => 'Half Day',
                             ])
-                            ->default('present')
+                            ->default('full_present')
                             ->required(),
                     ])->columns(2),
                 
@@ -163,6 +167,28 @@ class AttendanceResource extends Resource
                 Tables\Columns\TextColumn::make('date')
                     ->date()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('day_type')
+                    ->label('Day Type')
+                    ->badge()
+                    ->getStateUsing(function ($record) {
+                        $date = \Carbon\Carbon::parse($record->date);
+                        
+                        if (\App\Models\Holiday::isHoliday($date)) {
+                            $holiday = \App\Models\Holiday::getHoliday($date);
+                            return $holiday ? $holiday->name : 'Holiday';
+                        }
+                        
+                        if ($date->isWeekend()) {
+                            return $date->format('l'); // Saturday, Sunday
+                        }
+                        
+                        return 'Working Day';
+                    })
+                    ->color(fn ($state): string => match (true) {
+                        str_contains($state, 'Holiday') => 'danger',
+                        in_array($state, ['Saturday', 'Sunday']) => 'warning',
+                        default => 'success',
+                    }),
                 Tables\Columns\TextColumn::make('clock_in')
                     ->time()
                     ->sortable()
@@ -181,16 +207,50 @@ class AttendanceResource extends Resource
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'present' => 'success',
+                        'full_present' => 'success',
+                        'late_in' => 'warning',
+                        'early_out' => 'warning',
+                        'late_in_early_out' => 'danger',
+                        'present' => 'success', // Legacy
+                        'late' => 'danger', // Legacy
+                        'early_leave' => 'danger', // Legacy
                         'absent' => 'danger',
-                        'late' => 'warning',
-                        'early_leave' => 'warning',
                         'half_day' => 'info',
+                    })
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'full_present' => 'Full Present',
+                        'late_in' => 'Late In',
+                        'early_out' => 'Early Out',
+                        'late_in_early_out' => 'Late In + Early Out',
+                        'present' => 'Present',
+                        'late' => 'Late',
+                        'early_leave' => 'Early Leave',
+                        'absent' => 'Absent',
+                        'half_day' => 'Half Day',
+                        default => ucfirst(str_replace('_', ' ', $state)),
                     }),
                 Tables\Columns\TextColumn::make('late_minutes')
                     ->numeric()
                     ->label('Late (min)')
-                    ->sortable(),
+                    ->sortable()
+                    ->color(fn ($state): string => $state > 0 ? 'danger' : 'gray')
+                    ->weight(fn ($state): string => $state > 0 ? 'bold' : 'normal'),
+                Tables\Columns\TextColumn::make('early_minutes')
+                    ->numeric()
+                    ->label('Early (min)')
+                    ->sortable()
+                    ->color(fn ($state): string => $state > 0 ? 'danger' : 'gray')
+                    ->weight(fn ($state): string => $state > 0 ? 'bold' : 'normal'),
+                Tables\Columns\TextColumn::make('working_hours')
+                    ->label('Working Hours')
+                    ->getStateUsing(function ($record): string {
+                        if ($record->clock_in && $record->clock_out) {
+                            $totalMinutes = \Carbon\Carbon::parse($record->clock_in)->diffInMinutes(\Carbon\Carbon::parse($record->clock_out));
+                            $totalHours = round($totalMinutes / 60, 2);
+                            return number_format($totalHours, 2) . 'h';
+                        }
+                        return '-';
+                    }),
                 Tables\Columns\TextColumn::make('deduction_amount')
                     ->money('USD')
                     ->label('Deduction')

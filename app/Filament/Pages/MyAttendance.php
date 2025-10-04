@@ -43,12 +43,14 @@ class MyAttendance extends Page implements HasTable
 
     public function getTableQuery(): Builder
     {
+        // For now, return the basic query and we'll enhance the columns to show comprehensive data
         return Attendance::query()
             ->where('user_id', auth()->id())
             ->whereMonth('date', $this->selectedMonth)
             ->whereYear('date', $this->selectedYear)
             ->with(['clockInLocation', 'clockOutLocation']);
     }
+    
 
     public function table(Table $table): Table
     {
@@ -59,37 +61,362 @@ class MyAttendance extends Page implements HasTable
                     ->date()
                     ->sortable()
                     ->label('Date'),
+                TextColumn::make('day_status')
+                    ->label('Day Status')
+                    ->badge()
+                    ->getStateUsing(function ($record) {
+                        $date = \Carbon\Carbon::parse($record->date);
+                        $user = auth()->user();
+                        
+                        // Check if it's a holiday (from holiday table)
+                        if (\App\Models\Holiday::isHoliday($date)) {
+                            $holiday = \App\Models\Holiday::getHoliday($date);
+                            return $holiday ? $holiday->name : 'Holiday';
+                        }
+                        
+                        // Check if it's a working day based on office time
+                        $isWorkingDay = true;
+                        if ($user->officeTime) {
+                            $isWorkingDay = $user->officeTime->isWorkingDate($date);
+                        } else {
+                            // Fallback to standard weekend check if no office time
+                            $isWorkingDay = !$date->isWeekend();
+                        }
+                        
+                        if (!$isWorkingDay) {
+                            return $date->format('l'); // Saturday, Sunday, or non-working day
+                        }
+                        
+                        // Check if on leave
+                        $leaveApplication = \App\Models\LeaveApplication::where('user_id', $user->id)
+                            ->where('status', 'approved')
+                            ->where(function ($query) use ($date) {
+                                $query->whereDate('start_date', '<=', $date)
+                                    ->whereDate('end_date', '>=', $date);
+                            })
+                            ->with('leaveType')
+                            ->first();
+                        
+                        if ($leaveApplication) {
+                            return $leaveApplication->leaveType->name;
+                        }
+                        
+                        // If has attendance, it's a working day with attendance
+                        return 'Working Day';
+                    })
+                    ->color(fn ($state): string => match (true) {
+                        str_contains($state, 'Holiday') => 'danger',
+                        in_array($state, ['Saturday', 'Sunday']) => 'warning',
+                        str_contains($state, 'Leave') => 'info',
+                        $state === 'Working Day' => 'success',
+                        default => 'gray',
+                    }),
                 TextColumn::make('clock_in')
-                    ->time()
-                    ->label('Clock In'),
+                    ->label('Clock In')
+                    ->getStateUsing(function ($record) {
+                        $date = \Carbon\Carbon::parse($record->date);
+                        $user = auth()->user();
+                        
+                        // Check if it's a holiday
+                        if (\App\Models\Holiday::isHoliday($date)) {
+                            return '-';
+                        }
+                        
+                        // Check if it's a working day based on office time
+                        $isWorkingDay = true;
+                        if ($user->officeTime) {
+                            $isWorkingDay = $user->officeTime->isWorkingDate($date);
+                        } else {
+                            $isWorkingDay = !$date->isWeekend();
+                        }
+                        
+                        if (!$isWorkingDay) {
+                            return '-';
+                        }
+                        
+                        // Check if on leave
+                        $leaveApplication = \App\Models\LeaveApplication::where('user_id', $user->id)
+                            ->where('status', 'approved')
+                            ->where(function ($query) use ($date) {
+                                $query->whereDate('start_date', '<=', $date)
+                                    ->whereDate('end_date', '>=', $date);
+                            })
+                            ->first();
+                        
+                        if ($leaveApplication) {
+                            return '-';
+                        }
+                        
+                        return $record->clock_in ? \Carbon\Carbon::parse($record->clock_in)->format('H:i') : '-';
+                    }),
                 TextColumn::make('clock_out')
-                    ->time()
-                    ->label('Clock Out'),
+                    ->label('Clock Out')
+                    ->getStateUsing(function ($record) {
+                        $date = \Carbon\Carbon::parse($record->date);
+                        $user = auth()->user();
+                        
+                        // Check if it's a holiday
+                        if (\App\Models\Holiday::isHoliday($date)) {
+                            return '-';
+                        }
+                        
+                        // Check if it's a working day based on office time
+                        $isWorkingDay = true;
+                        if ($user->officeTime) {
+                            $isWorkingDay = $user->officeTime->isWorkingDate($date);
+                        } else {
+                            $isWorkingDay = !$date->isWeekend();
+                        }
+                        
+                        if (!$isWorkingDay) {
+                            return '-';
+                        }
+                        
+                        // Check if on leave
+                        $leaveApplication = \App\Models\LeaveApplication::where('user_id', $user->id)
+                            ->where('status', 'approved')
+                            ->where(function ($query) use ($date) {
+                                $query->whereDate('start_date', '<=', $date)
+                                    ->whereDate('end_date', '>=', $date);
+                            })
+                            ->first();
+                        
+                        if ($leaveApplication) {
+                            return '-';
+                        }
+                        
+                        return $record->clock_out ? \Carbon\Carbon::parse($record->clock_out)->format('H:i') : '-';
+                    }),
                 TextColumn::make('status')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'present' => 'success',
-                        'late' => 'warning',
-                        'absent' => 'danger',
-                        'early_leave' => 'warning',
-                        'half_day' => 'info',
+                    ->getStateUsing(function ($record) {
+                        $date = \Carbon\Carbon::parse($record->date);
+                        $user = auth()->user();
+                        
+                        // Check if it's a holiday
+                        if (\App\Models\Holiday::isHoliday($date)) {
+                            $holiday = \App\Models\Holiday::getHoliday($date);
+                            return $holiday ? $holiday->name : 'Holiday';
+                        }
+                        
+                        // Check if it's a working day based on office time
+                        $isWorkingDay = true;
+                        if ($user->officeTime) {
+                            $isWorkingDay = $user->officeTime->isWorkingDate($date);
+                        } else {
+                            $isWorkingDay = !$date->isWeekend();
+                        }
+                        
+                        if (!$isWorkingDay) {
+                            return $date->format('l'); // Friday, Saturday, or non-working day
+                        }
+                        
+                        // Check if on leave
+                        $leaveApplication = \App\Models\LeaveApplication::where('user_id', $user->id)
+                            ->where('status', 'approved')
+                            ->where(function ($query) use ($date) {
+                                $query->whereDate('start_date', '<=', $date)
+                                    ->whereDate('end_date', '>=', $date);
+                            })
+                            ->with('leaveType')
+                            ->first();
+                        
+                        if ($leaveApplication) {
+                            return $leaveApplication->leaveType->name;
+                        }
+                        
+                        // Check for incomplete attendance (only clock in OR only clock out)
+                        if ((!$record->clock_in && $record->clock_out) || ($record->clock_in && !$record->clock_out)) {
+                            return 'Absent';
+                        }
+                        
+                        // Show attendance status for working days with complete attendance
+                        return match ($record->status) {
+                            'full_present' => 'Full Present',
+                            'late_in' => 'Late In',
+                            'early_out' => 'Early Out',
+                            'late_in_early_out' => 'Late In + Early Out',
+                            'present' => 'Present',
+                            'late' => 'Late',
+                            'early_leave' => 'Early Leave',
+                            'absent' => 'Absent',
+                            'half_day' => 'Half Day',
+                            default => ucfirst(str_replace('_', ' ', $record->status)),
+                        };
+                    })
+                    ->color(function ($record) {
+                        $date = \Carbon\Carbon::parse($record->date);
+                        $user = auth()->user();
+                        
+                        // Check if it's a holiday
+                        if (\App\Models\Holiday::isHoliday($date)) {
+                            return 'danger';
+                        }
+                        
+                        // Check if it's a working day based on office time
+                        $isWorkingDay = true;
+                        if ($user->officeTime) {
+                            $isWorkingDay = $user->officeTime->isWorkingDate($date);
+                        } else {
+                            $isWorkingDay = !$date->isWeekend();
+                        }
+                        
+                        if (!$isWorkingDay) {
+                            return 'warning';
+                        }
+                        
+                        // Check if on leave
+                        $leaveApplication = \App\Models\LeaveApplication::where('user_id', $user->id)
+                            ->where('status', 'approved')
+                            ->where(function ($query) use ($date) {
+                                $query->whereDate('start_date', '<=', $date)
+                                    ->whereDate('end_date', '>=', $date);
+                            })
+                            ->first();
+                        
+                        if ($leaveApplication) {
+                            return 'info';
+                        }
+                        
+                        // Check for incomplete attendance (only clock in OR only clock out)
+                        if ((!$record->clock_in && $record->clock_out) || ($record->clock_in && !$record->clock_out)) {
+                            return 'danger'; // Red color for absent
+                        }
+                        
+                        // Show attendance status colors for working days with complete attendance
+                        return match ($record->status) {
+                            'full_present' => 'success',
+                            'late_in' => 'warning',
+                            'early_out' => 'warning',
+                            'late_in_early_out' => 'danger',
+                            'present' => 'success',
+                            'late' => 'danger',
+                            'early_leave' => 'danger',
+                            'absent' => 'danger',
+                            'half_day' => 'info',
+                            default => 'gray',
+                        };
                     }),
                 TextColumn::make('working_hours')
                     ->label('Working Hours')
                     ->getStateUsing(function (Attendance $record): string {
+                        $date = \Carbon\Carbon::parse($record->date);
+                        $user = auth()->user();
+                        
+                        // Check if it's a holiday
+                        if (\App\Models\Holiday::isHoliday($date)) {
+                            return '-';
+                        }
+                        
+                        // Check if it's a working day based on office time
+                        $isWorkingDay = true;
+                        if ($user->officeTime) {
+                            $isWorkingDay = $user->officeTime->isWorkingDate($date);
+                        } else {
+                            $isWorkingDay = !$date->isWeekend();
+                        }
+                        
+                        if (!$isWorkingDay) {
+                            return '-';
+                        }
+                        
+                        // Check if on leave
+                        $leaveApplication = \App\Models\LeaveApplication::where('user_id', $user->id)
+                            ->where('status', 'approved')
+                            ->where(function ($query) use ($date) {
+                                $query->whereDate('start_date', '<=', $date)
+                                    ->whereDate('end_date', '>=', $date);
+                            })
+                            ->first();
+                        
+                        if ($leaveApplication) {
+                            return '-';
+                        }
+                        
+                        // Show working hours for working days with attendance
                         if ($record->clock_in && $record->clock_out) {
-                            $hours = Carbon::parse($record->clock_in)->diffInHours(Carbon::parse($record->clock_out));
-                            $minutes = Carbon::parse($record->clock_in)->diffInMinutes(Carbon::parse($record->clock_out)) % 60;
-                            return sprintf('%d:%02d', $hours, $minutes);
+                            $totalMinutes = Carbon::parse($record->clock_in)->diffInMinutes(Carbon::parse($record->clock_out));
+                            $totalHours = round($totalMinutes / 60, 2);
+                            return number_format($totalHours, 2) . 'h';
                         }
                         return '-';
                     }),
                 TextColumn::make('late_minutes')
                     ->label('Late (min)')
-                    ->placeholder('0'),
+                    ->getStateUsing(function ($record) {
+                        $date = \Carbon\Carbon::parse($record->date);
+                        $user = auth()->user();
+                        
+                        // Check if it's a holiday
+                        if (\App\Models\Holiday::isHoliday($date)) {
+                            return '-';
+                        }
+                        
+                        // Check if it's a working day based on office time
+                        $isWorkingDay = true;
+                        if ($user->officeTime) {
+                            $isWorkingDay = $user->officeTime->isWorkingDate($date);
+                        } else {
+                            $isWorkingDay = !$date->isWeekend();
+                        }
+                        
+                        if (!$isWorkingDay) {
+                            return '-';
+                        }
+                        
+                        // Check if on leave
+                        $leaveApplication = \App\Models\LeaveApplication::where('user_id', $user->id)
+                            ->where('status', 'approved')
+                            ->where(function ($query) use ($date) {
+                                $query->whereDate('start_date', '<=', $date)
+                                    ->whereDate('end_date', '>=', $date);
+                            })
+                            ->first();
+                        
+                        if ($leaveApplication) {
+                            return '-';
+                        }
+                        
+                        return $record->late_minutes ?? 0;
+                    }),
                 TextColumn::make('early_minutes')
                     ->label('Early (min)')
-                    ->placeholder('0'),
+                    ->getStateUsing(function ($record) {
+                        $date = \Carbon\Carbon::parse($record->date);
+                        $user = auth()->user();
+                        
+                        // Check if it's a holiday
+                        if (\App\Models\Holiday::isHoliday($date)) {
+                            return '-';
+                        }
+                        
+                        // Check if it's a working day based on office time
+                        $isWorkingDay = true;
+                        if ($user->officeTime) {
+                            $isWorkingDay = $user->officeTime->isWorkingDate($date);
+                        } else {
+                            $isWorkingDay = !$date->isWeekend();
+                        }
+                        
+                        if (!$isWorkingDay) {
+                            return '-';
+                        }
+                        
+                        // Check if on leave
+                        $leaveApplication = \App\Models\LeaveApplication::where('user_id', $user->id)
+                            ->where('status', 'approved')
+                            ->where(function ($query) use ($date) {
+                                $query->whereDate('start_date', '<=', $date)
+                                    ->whereDate('end_date', '>=', $date);
+                            })
+                            ->first();
+                        
+                        if ($leaveApplication) {
+                            return '-';
+                        }
+                        
+                        return $record->early_minutes ?? 0;
+                    }),
                 TextColumn::make('clockInLocation.name')
                     ->label('Location')
                     ->placeholder('N/A'),
@@ -97,10 +424,14 @@ class MyAttendance extends Page implements HasTable
             ->filters([
                 \Filament\Tables\Filters\SelectFilter::make('status')
                     ->options([
-                        'present' => 'Present',
-                        'late' => 'Late',
+                        'full_present' => 'Full Present',
+                        'late_in' => 'Late In',
+                        'early_out' => 'Early Out',
+                        'late_in_early_out' => 'Late In + Early Out',
+                        'present' => 'Present (Legacy)',
+                        'late' => 'Late (Legacy)',
+                        'early_leave' => 'Early Leave (Legacy)',
                         'absent' => 'Absent',
-                        'early_leave' => 'Early Leave',
                         'half_day' => 'Half Day',
                     ]),
             ])

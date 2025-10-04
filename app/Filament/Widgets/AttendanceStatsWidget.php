@@ -40,7 +40,7 @@ class AttendanceStatsWidget extends BaseWidget
             Stat::make('Late Today', $lateToday)
                 ->description('Employees late today')
                 ->descriptionIcon('heroicon-o-clock')
-                ->color('warning'),
+                ->color('danger'), // Red color for late employees
             
             Stat::make('Absent Today', $absentToday)
                 ->description('Employees absent today')

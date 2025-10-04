@@ -18,6 +18,8 @@ class DatabaseSeeder extends Seeder
             LeaveTypeSeeder::class,
             LocationSeeder::class,
             DeductionRuleSeeder::class,
+            OfficeTimeSeeder::class,
+            HolidaySeeder::class,
             LeaveBalanceSeeder::class,
         ]);
     }

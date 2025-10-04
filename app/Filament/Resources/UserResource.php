@@ -130,6 +130,11 @@ class UserResource extends Resource
                             ->relationship('department', 'name')
                             ->required()
                             ->preload(),
+                        Forms\Components\Select::make('office_time_id')
+                            ->relationship('officeTime', 'name')
+                            ->label('Office Time')
+                            ->preload()
+                            ->helperText('Assign office time schedule to this employee'),
                         Forms\Components\Select::make('manager_id')
                             ->relationship('manager', 'name')
                             ->searchable()
@@ -181,6 +186,12 @@ class UserResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->label('Department'),
+                Tables\Columns\TextColumn::make('officeTime.name')
+                    ->searchable()
+                    ->sortable()
+                    ->label('Office Time')
+                    ->badge()
+                    ->color('info'),
                 Tables\Columns\TextColumn::make('role.name')
                     ->searchable()
                     ->sortable()

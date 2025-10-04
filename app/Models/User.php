@@ -31,6 +31,7 @@ class User extends Authenticatable
         'role_id',
         'department_id',
         'manager_id',
+        'office_time_id',
         'profile_photo',
     ];
 
@@ -67,6 +68,11 @@ class User extends Authenticatable
     public function department()
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function officeTime()
+    {
+        return $this->belongsTo(OfficeTime::class);
     }
 
     public function manager()

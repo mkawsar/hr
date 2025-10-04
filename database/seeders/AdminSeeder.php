@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Role;
 use App\Models\Department;
 use App\Models\User;
+use App\Models\OfficeTime;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -68,6 +69,9 @@ class AdminSeeder extends Seeder
             ['description' => 'HR Department']
         );
 
+        // Get default office time
+        $standardOfficeTime = OfficeTime::where('code', 'STD')->first();
+
         // Create admin user
         $adminUser = User::firstOrCreate(
             ['email' => 'admin@hr.com'],
@@ -77,6 +81,7 @@ class AdminSeeder extends Seeder
                 'password' => Hash::make('password'),
                 'role_id' => $adminRole->id,
                 'department_id' => $itDepartment->id,
+                'office_time_id' => $standardOfficeTime?->id,
                 'designation' => 'System Administrator',
                 'date_of_joining' => now()->subYear(),
                 'status' => 'active',
@@ -91,6 +96,7 @@ class AdminSeeder extends Seeder
                 'name' => 'Jane Supervisor',
                 'employee_id' => 'EMP002',
                 'designation' => 'Team Lead',
+                'office_time_id' => $standardOfficeTime?->id,
             ]);
             $supervisorUser = $existingHrUser;
         } else {
@@ -103,6 +109,7 @@ class AdminSeeder extends Seeder
                     'password' => Hash::make('password'),
                     'role_id' => $supervisorRole->id,
                     'department_id' => $itDepartment->id,
+                    'office_time_id' => $standardOfficeTime?->id,
                     'designation' => 'Team Lead',
                     'date_of_joining' => now()->subMonths(6),
                     'status' => 'active',
@@ -119,6 +126,7 @@ class AdminSeeder extends Seeder
                 'password' => Hash::make('password'),
                 'role_id' => $employeeRole->id,
                 'department_id' => $itDepartment->id,
+                'office_time_id' => $standardOfficeTime?->id,
                 'designation' => 'Software Developer',
                 'date_of_joining' => now()->subMonths(3),
                 'status' => 'active',
@@ -136,6 +144,7 @@ class AdminSeeder extends Seeder
                 'password' => Hash::make('password'),
                 'role_id' => $employeeRole->id,
                 'department_id' => $itDepartment->id,
+                'office_time_id' => $standardOfficeTime?->id,
                 'designation' => 'UI/UX Designer',
                 'date_of_joining' => now()->subMonths(2),
                 'status' => 'active',
@@ -151,6 +160,7 @@ class AdminSeeder extends Seeder
                 'password' => Hash::make('password'),
                 'role_id' => $employeeRole->id,
                 'department_id' => $itDepartment->id,
+                'office_time_id' => $standardOfficeTime?->id,
                 'designation' => 'QA Engineer',
                 'date_of_joining' => now()->subMonths(1),
                 'status' => 'active',

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Location;
 use App\Models\DeductionRule;
+use App\Models\Holiday;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -63,12 +64,16 @@ class AttendanceController extends Controller
             $attendanceData['clock_in_location_id'] = $request->location_id;
         }
 
-        // Check if late (assuming 9 AM as standard start time)
-        $standardStartTime = Carbon::today()->setTime(9, 0);
-        if (now()->gt($standardStartTime)) {
-            $lateMinutes = now()->diffInMinutes($standardStartTime);
-            $attendanceData['late_minutes'] = $lateMinutes;
-            $attendanceData['status'] = 'late';
+        // Check if late based on office time
+        $lateMinutes = 0;
+        if ($user->officeTime) {
+            $lateMinutes = $user->officeTime->getLateMinutes(Carbon::parse($attendanceData['clock_in']));
+        }
+
+        $attendanceData['late_minutes'] = $lateMinutes;
+
+        if ($lateMinutes > 0) {
+            $attendanceData['status'] = 'late_in';
 
             // Calculate deduction based on rules
             $deductionRule = DeductionRule::where('threshold_minutes', '<=', $lateMinutes)
@@ -80,7 +85,7 @@ class AttendanceController extends Controller
                 $attendanceData['deduction_amount'] = $deductionRule->deduction_value;
             }
         } else {
-            $attendanceData['status'] = 'present';
+            $attendanceData['status'] = 'present'; // Will be updated to 'full_present' or 'early_out' on clock out
         }
 
         $attendance = Attendance::create($attendanceData);
@@ -133,15 +138,25 @@ class AttendanceController extends Controller
             $attendanceData['clock_out_location_id'] = $request->location_id;
         }
 
-        // Check if early leave (assuming 6 PM as standard end time)
-        $standardEndTime = Carbon::today()->setTime(18, 0);
-        if (now()->lt($standardEndTime)) {
-            $earlyMinutes = $standardEndTime->diffInMinutes(now());
-            $attendanceData['early_minutes'] = $earlyMinutes;
+        // Check if early leave based on office time
+        $earlyMinutes = 0;
+        if ($user->officeTime) {
+            $earlyMinutes = $user->officeTime->getEarlyMinutes(Carbon::parse($attendanceData['clock_out']));
+        }
 
-            if ($attendance->status === 'present') {
-                $attendanceData['status'] = 'early_leave';
-            }
+        $attendanceData['early_minutes'] = $earlyMinutes;
+
+        // Enhanced status classification
+        $lateMinutes = $attendance->late_minutes ?? 0;
+        
+        if ($lateMinutes > 0 && $earlyMinutes > 0) {
+            $attendanceData['status'] = 'late_in_early_out';
+        } elseif ($lateMinutes > 0) {
+            $attendanceData['status'] = 'late_in';
+        } elseif ($earlyMinutes > 0) {
+            $attendanceData['status'] = 'early_out';
+        } else {
+            $attendanceData['status'] = 'full_present';
         }
 
         $attendance->update($attendanceData);
@@ -243,8 +258,14 @@ class AttendanceController extends Controller
             // Check if it's weekend
             $isWeekend = $currentDate->isWeekend();
             
-            // Check if it's a holiday (you can add holiday logic here)
-            $isHoliday = false; // Implement holiday checking logic
+            // Check if it's a holiday
+            $isHoliday = Holiday::isHoliday($currentDate);
+            
+            // Check if it's a working day based on office time
+            $isWorkingDay = true;
+            if ($user->officeTime) {
+                $isWorkingDay = $user->officeTime->isWorkingDate($currentDate);
+            }
             
             // Check if on leave
             $leaveApplication = $leaveApplications->first(function ($leave) use ($currentDate) {
@@ -290,6 +311,7 @@ class AttendanceController extends Controller
                 'day_name' => $currentDate->format('l'),
                 'is_weekend' => $isWeekend,
                 'is_holiday' => $isHoliday,
+                'is_working_day' => $isWorkingDay,
                 'is_on_leave' => $leaveApplication ? true : false,
                 'leave_type' => $leaveApplication ? $leaveApplication->leaveType->name : null,
                 'entries' => $entries,
@@ -309,11 +331,18 @@ class AttendanceController extends Controller
             'data' => $monthlyData,
             'summary' => [
                 'total_days' => $startDate->daysInMonth,
-                'working_days' => $startDate->copy()->startOfMonth()->diffInDaysFiltered(function ($date) {
-                    return !$date->isWeekend();
-                }, $endDate),
+                'working_days' => $user->officeTime ? 
+                    $startDate->copy()->startOfMonth()->diffInDaysFiltered(function ($date) use ($user) {
+                        return $user->officeTime->isWorkingDate($date);
+                    }, $endDate) : 
+                    $startDate->copy()->startOfMonth()->diffInDaysFiltered(function ($date) {
+                        return !$date->isWeekend();
+                    }, $endDate),
                 'weekend_days' => $startDate->copy()->startOfMonth()->diffInDaysFiltered(function ($date) {
                     return $date->isWeekend();
+                }, $endDate),
+                'holiday_days' => $startDate->copy()->startOfMonth()->diffInDaysFiltered(function ($date) {
+                    return Holiday::isHoliday($date);
                 }, $endDate),
                 'leave_days' => $leaveApplications->sum('days_count'),
                 'total_working_hours' => collect($monthlyData)->sum('total_working_hours'),
