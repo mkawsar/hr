@@ -33,6 +33,42 @@ class MyAttendance extends Page implements HasTable
         $this->selectedYear = now()->year;
     }
 
+    public function getAvailableMonths(): array
+    {
+        $months = [];
+        $currentMonth = now()->month;
+        $currentYear = now()->year;
+        
+        // If viewing current year, only show months up to current month
+        // If viewing previous years, show all 12 months
+        if ($this->selectedYear == $currentYear) {
+            // Current year: only allow current and past months
+            for ($month = 1; $month <= $currentMonth; $month++) {
+                $months[$month] = now()->month($month)->format('F');
+            }
+        } else {
+            // Previous years: show all 12 months
+            for ($month = 1; $month <= 12; $month++) {
+                $months[$month] = now()->month($month)->format('F');
+            }
+        }
+        
+        return $months;
+    }
+
+    public function getAvailableYears(): array
+    {
+        $years = [];
+        $currentYear = now()->year;
+        
+        // Only allow current and past years (going back 3 years)
+        for ($year = $currentYear; $year >= $currentYear - 2; $year--) {
+            $years[$year] = $year;
+        }
+        
+        return $years;
+    }
+
     public function getTableQuery(): Builder
     {
         $query = DailyAttendance::query()
@@ -186,20 +222,36 @@ class MyAttendance extends Page implements HasTable
             \Filament\Actions\Action::make('change_month')
                 ->label('Change Month')
                 ->form([
-                    \Filament\Forms\Components\Select::make('month')
-                        ->label('Month')
-                        ->options([
-                            1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April',
-                            5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
-                            9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December'
-                        ])
-                        ->default($this->selectedMonth),
                     \Filament\Forms\Components\Select::make('year')
                         ->label('Year')
-                        ->options(array_combine(range(2020, 2030), range(2020, 2030)))
-                        ->default($this->selectedYear),
+                        ->options($this->getAvailableYears())
+                        ->default($this->selectedYear)
+                        ->live()
+                        ->afterStateUpdated(function ($state, $set) {
+                            // Reset month to 1 when year changes to ensure valid selection
+                            if ($state != now()->year) {
+                                $set('month', 1);
+                            }
+                        }),
+                    \Filament\Forms\Components\Select::make('month')
+                        ->label('Month')
+                        ->options(function ($get) {
+                            // Get the selected year from the form
+                            $selectedYear = $get('year') ?? $this->selectedYear;
+                            
+                            // Temporarily set the selected year to get correct months
+                            $originalYear = $this->selectedYear;
+                            $this->selectedYear = $selectedYear;
+                            $months = $this->getAvailableMonths();
+                            $this->selectedYear = $originalYear;
+                            
+                            return $months;
+                        })
+                        ->default($this->selectedMonth)
+                        ->live(),
                 ])
                 ->action(function (array $data): void {
+                    // Only update when modal is submitted
                     $this->selectedMonth = $data['month'];
                     $this->selectedYear = $data['year'];
                 }),
