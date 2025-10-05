@@ -26,6 +26,7 @@ class User extends Authenticatable
         'phone_2',
         'address',
         'designation',
+        'salary',
         'date_of_joining',
         'status',
         'role_id',
@@ -56,6 +57,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'date_of_joining' => 'date',
+            'salary' => 'decimal:2',
         ];
     }
 
