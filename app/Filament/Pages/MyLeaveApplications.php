@@ -13,6 +13,7 @@ use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
@@ -125,9 +126,10 @@ class MyLeaveApplications extends Page implements HasTable
                                     $set('days_count', $days);
                                 }
                             }),
-                        TextColumn::make('days_count')
+                        TextInput::make('days_count')
                             ->label('Number of Days')
-                            ->disabled(),
+                            ->disabled()
+                            ->dehydrated(),
                         Textarea::make('reason')
                             ->label('Reason for Leave')
                             ->rows(3)

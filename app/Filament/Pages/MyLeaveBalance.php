@@ -135,7 +135,8 @@ class MyLeaveBalance extends Page implements HasTable
                             }),
                         \Filament\Forms\Components\TextInput::make('days_count')
                             ->label('Number of Days')
-                            ->disabled(),
+                            ->disabled()
+                            ->dehydrated(),
                         Textarea::make('reason')
                             ->label('Reason for Leave')
                             ->rows(3)

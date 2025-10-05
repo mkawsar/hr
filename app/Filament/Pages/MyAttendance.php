@@ -274,9 +274,9 @@ class MyAttendance extends Page implements HasTable
             return 'Weekend'; // Show "Weekend" for non-working days
         }
 
-        // Check if on leave
+        // Check if on leave (approved or pending)
         $leaveApplication = LeaveApplication::where('user_id', $user->id)
-            ->where('status', 'approved')
+            ->whereIn('status', ['approved', 'pending'])
             ->where(function ($query) use ($date) {
                 $query->whereDate('start_date', '<=', $date)
                     ->whereDate('end_date', '>=', $date);
@@ -285,7 +285,11 @@ class MyAttendance extends Page implements HasTable
             ->first();
 
         if ($leaveApplication) {
-            return $leaveApplication->leaveType->name . ' Leave';
+            if ($leaveApplication->status === 'approved') {
+                return $leaveApplication->leaveType->name . ' Leave';
+            } else {
+                return $leaveApplication->leaveType->name . ' Pending';
+            }
         }
 
 
@@ -334,9 +338,9 @@ class MyAttendance extends Page implements HasTable
             return 'warning'; // Yellow for weekend
         }
 
-        // Check if on leave
+        // Check if on leave (approved or pending)
         $leaveApplication = LeaveApplication::where('user_id', $user->id)
-            ->where('status', 'approved')
+            ->whereIn('status', ['approved', 'pending'])
             ->where(function ($query) use ($date) {
                 $query->whereDate('start_date', '<=', $date)
                     ->whereDate('end_date', '>=', $date);
@@ -344,7 +348,11 @@ class MyAttendance extends Page implements HasTable
             ->first();
 
         if ($leaveApplication) {
-            return 'info';
+            if ($leaveApplication->status === 'approved') {
+                return 'info'; // Blue for approved leave
+            } else {
+                return 'warning'; // Yellow for pending leave
+            }
         }
 
 
@@ -460,7 +468,7 @@ class MyAttendance extends Page implements HasTable
     private function isUserOnLeave($date, $user): ?LeaveApplication
     {
         return LeaveApplication::where('user_id', $user->id)
-            ->where('status', 'approved')
+            ->whereIn('status', ['approved', 'pending'])
             ->where(function ($query) use ($date) {
                 $query->whereDate('start_date', '<=', $date)
                     ->whereDate('end_date', '>=', $date);

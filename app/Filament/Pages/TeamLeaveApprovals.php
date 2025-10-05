@@ -115,9 +115,12 @@ class TeamLeaveApprovals extends Page implements HasTable
                             'approval_notes' => $data['approval_notes'] ?? null,
                         ]);
 
+                        // Deduct leave days from user's leave balance
+                        $record->deductFromLeaveBalance();
+
                         Notification::make()
                             ->title('Leave Approved')
-                            ->body("Leave application for {$record->user->name} has been approved.")
+                            ->body("Leave application for {$record->user->name} has been approved and deducted from leave balance.")
                             ->success()
                             ->send();
                     }),

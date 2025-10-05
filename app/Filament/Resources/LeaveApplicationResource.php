@@ -26,7 +26,7 @@ class LeaveApplicationResource extends Resource
     public static function canViewAny(): bool
     {
         $user = auth()->user();
-        return $user && ($user->isAdmin() || $user->isSupervisor());
+        return $user && $user->isAdmin();
     }
 
     public static function canCreate(): bool
@@ -141,13 +141,9 @@ class LeaveApplicationResource extends Resource
         if ($user->isAdmin()) {
             // Admin can see all leave applications
             return parent::getEloquentQuery();
-        } elseif ($user->isSupervisor()) {
-            // Supervisor can only see their team's leave applications
-            return parent::getEloquentQuery()
-                ->whereIn('user_id', $user->subordinates->pluck('id'));
         }
         
-        // Employees cannot access this resource (they use MyLeaveApplications page)
+        // Only admins can access this resource
         return parent::getEloquentQuery()->whereRaw('1 = 0');
     }
 
@@ -254,6 +250,9 @@ class LeaveApplicationResource extends Resource
                             'approved_at' => now(),
                             'approval_notes' => $data['approval_notes'] ?? null,
                         ]);
+
+                        // Deduct leave days from user's leave balance
+                        $record->deductFromLeaveBalance();
                     }),
                 Tables\Actions\Action::make('reject')
                     ->icon('heroicon-o-x-circle')
