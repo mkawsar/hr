@@ -23,6 +23,10 @@ return new class extends Migration
             $table->boolean('active')->default(true); // Whether this configuration is active
             $table->integer('year')->nullable(); // Specific year this config applies to (null for all years)
             $table->timestamps();
+
+            // Performance indexes
+            $table->index('active', 'idx_earned_leave_configs_active');
+            $table->index('year', 'idx_earned_leave_configs_year');
         });
     }
 

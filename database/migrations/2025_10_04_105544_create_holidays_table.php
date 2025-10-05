@@ -21,8 +21,10 @@ return new class extends Migration
             $table->boolean('active')->default(true);
             $table->timestamps();
 
-            $table->index(['date', 'active']);
+            // Performance indexes
+            $table->index(['date', 'active'], 'idx_holidays_date_active');
             $table->index(['type', 'active']);
+            $table->index('date', 'idx_holidays_date');
         });
     }
 

@@ -23,7 +23,10 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['user_id', 'leave_type_id', 'year']);
-            $table->index(['user_id', 'year']);
+            
+            // Performance indexes
+            $table->index(['user_id', 'year'], 'idx_leave_balances_user_year');
+            $table->index('leave_type_id', 'idx_leave_balances_leave_type');
         });
     }
 

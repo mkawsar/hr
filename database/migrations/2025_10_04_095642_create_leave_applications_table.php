@@ -27,8 +27,10 @@ return new class extends Migration
             $table->timestamp('applied_at');
             $table->timestamps();
 
-            $table->index(['user_id', 'status']);
-            $table->index(['start_date', 'end_date']);
+            // Performance indexes
+            $table->index(['user_id', 'status'], 'idx_leave_applications_user_status');
+            $table->index(['start_date', 'end_date'], 'idx_leave_applications_date_range');
+            $table->index('approved_by', 'idx_leave_applications_approved_by');
         });
     }
 

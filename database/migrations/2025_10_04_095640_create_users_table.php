@@ -30,6 +30,11 @@ return new class extends Migration
             $table->string('profile_photo')->nullable();
             $table->rememberToken();
             $table->timestamps();
+
+            // Performance indexes
+            $table->index(['role_id', 'status'], 'idx_users_role_status');
+            $table->index('manager_id', 'idx_users_manager');
+            $table->index('department_id', 'idx_users_department');
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

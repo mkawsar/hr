@@ -51,10 +51,12 @@ return new class extends Migration
             
             $table->timestamps();
             
-            // Indexes for performance
+            // Performance indexes
             $table->index(['daily_attendance_id']);
-            $table->index(['user_id', 'date']);
+            $table->index(['user_id', 'date'], 'idx_attendance_entries_user_date');
             $table->index(['clock_in', 'clock_out']);
+            $table->index(['user_id', 'late_minutes'], 'idx_attendance_entries_late');
+            $table->index(['user_id', 'early_minutes'], 'idx_attendance_entries_early');
         });
     }
 

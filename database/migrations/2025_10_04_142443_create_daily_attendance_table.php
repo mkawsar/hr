@@ -48,8 +48,12 @@ return new class extends Migration
             
             // Unique constraint - one record per user per day
             $table->unique(['user_id', 'date']);
+            
+            // Performance indexes
             $table->index(['date', 'status']);
-            $table->index(['user_id', 'date']);
+            $table->index(['user_id', 'date'], 'idx_daily_attendance_user_date');
+            $table->index(['user_id', 'status'], 'idx_daily_attendance_user_status');
+            $table->index('date', 'idx_daily_attendance_date');
         });
     }
 
