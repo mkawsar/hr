@@ -31,12 +31,7 @@ class TeamLeaveApprovals extends Page implements HasTable
     {
         $user = auth()->user();
         
-        if ($user->isAdmin()) {
-            // Admin can see all pending leave applications
-            return LeaveApplication::query()
-                ->where('status', 'pending')
-                ->with(['user', 'leaveType']);
-        } elseif ($user->isSupervisor()) {
+        if ($user->isSupervisor()) {
             // Supervisor can only see their team's pending leave applications
             return LeaveApplication::query()
                 ->whereIn('user_id', $user->subordinates->pluck('id'))
@@ -44,7 +39,7 @@ class TeamLeaveApprovals extends Page implements HasTable
                 ->with(['user', 'leaveType']);
         }
         
-        return LeaveApplication::query()->whereRaw('1 = 0'); // Empty query for employees
+        return LeaveApplication::query()->whereRaw('1 = 0'); // Empty query for non-supervisors
     }
 
     public function table(Table $table): Table
@@ -166,6 +161,6 @@ class TeamLeaveApprovals extends Page implements HasTable
     public static function canAccess(): bool
     {
         $user = auth()->user();
-        return $user && ($user->isAdmin() || $user->isSupervisor());
+        return $user && $user->isSupervisor();
     }
 }

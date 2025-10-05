@@ -26,25 +26,29 @@ class LeaveApplicationResource extends Resource
     public static function canViewAny(): bool
     {
         $user = auth()->user();
-        return $user && $user->isAdmin();
+        // Admins cannot access leave applications resource
+        return $user && ($user->isEmployee() || $user->isSupervisor());
     }
 
     public static function canCreate(): bool
     {
         $user = auth()->user();
-        return $user && $user->isAdmin();
+        // Admins cannot create leave applications for themselves
+        return $user && ($user->isEmployee() || $user->isSupervisor());
     }
 
     public static function canEdit($record): bool
     {
         $user = auth()->user();
-        return $user && $user->isAdmin();
+        // Only employees and supervisors can edit their own applications
+        return $user && ($user->isEmployee() || $user->isSupervisor());
     }
 
     public static function canDelete($record): bool
     {
         $user = auth()->user();
-        return $user && $user->isAdmin();
+        // Only employees and supervisors can delete their own applications
+        return $user && ($user->isEmployee() || $user->isSupervisor());
     }
 
     public static function form(Form $form): Form
@@ -138,12 +142,12 @@ class LeaveApplicationResource extends Resource
     {
         $user = auth()->user();
         
-        if ($user->isAdmin()) {
-            // Admin can see all leave applications
-            return parent::getEloquentQuery();
+        if ($user->isEmployee() || $user->isSupervisor()) {
+            // Employees and supervisors can only see their own applications
+            return parent::getEloquentQuery()->where('user_id', $user->id);
         }
         
-        // Only admins can access this resource
+        // Admins cannot access this resource
         return parent::getEloquentQuery()->whereRaw('1 = 0');
     }
 

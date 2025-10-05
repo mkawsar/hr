@@ -173,6 +173,7 @@ class AttendanceResource extends Resource
                         'office' => 'success',
                         'remote' => 'info',
                         'mobile' => 'warning',
+                        'manual' => 'gray',
                     }),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
