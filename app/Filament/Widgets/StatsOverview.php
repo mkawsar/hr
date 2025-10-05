@@ -44,23 +44,11 @@ class StatsOverview extends BaseWidget
             ->whereIn('status', ['present', 'late'])
             ->count();
             
-        // Count absent days as working days with no attendance entries
-        $absentThisMonth = 0;
-        $currentDate = $startOfMonth->copy();
-        while ($currentDate->lte(now())) {
-            // Check if it's a working day (Monday to Friday)
-            if ($currentDate->isWeekday()) {
-                // Check if user has no attendance record for this date
-                $hasAttendance = DailyAttendance::where('user_id', $user->id)
-                    ->whereDate('date', $currentDate)
-                    ->exists();
-                    
-                if (!$hasAttendance) {
-                    $absentThisMonth++;
-                }
-            }
-            $currentDate->addDay();
-        }
+        // Count absent days using a single query instead of N+1 queries
+        $absentThisMonth = DailyAttendance::where('user_id', $user->id)
+            ->whereBetween('date', [$startOfMonth, now()])
+            ->whereIn('status', ['absent'])
+            ->count();
 
         return [
             Stat::make('Today\'s Status', $presentToday ? 'Present' : 'Absent')

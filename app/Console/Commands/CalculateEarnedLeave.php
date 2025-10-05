@@ -88,6 +88,16 @@ class CalculateEarnedLeave extends Command
 
         $this->info("Processing {$users->count()} users...");
 
+        // Batch load all attendance records to prevent N+1 queries
+        $userIds = $users->pluck('id')->toArray();
+        $allAttendanceRecords = DailyAttendance::whereIn('user_id', $userIds)
+            ->whereBetween('date', [
+                Carbon::create($calculationYear, 1, 1),
+                Carbon::create($calculationYear, 12, 31)
+            ])
+            ->get()
+            ->groupBy('user_id');
+
         $results = [];
         $totalProcessed = 0;
         $totalUpdated = 0;
@@ -96,7 +106,7 @@ class CalculateEarnedLeave extends Command
             $this->line("Processing user: {$user->name} (ID: {$user->id})");
             
             try {
-                $result = $this->calculateEarnedLeaveForUser($user, $calculationYear, $currentYear, $earnedLeaveType, $config, $dryRun);
+                $result = $this->calculateEarnedLeaveForUser($user, $calculationYear, $currentYear, $earnedLeaveType, $config, $dryRun, $allAttendanceRecords->get($user->id, collect()));
                 $results[] = $result;
                 $totalProcessed++;
                 
@@ -134,13 +144,13 @@ class CalculateEarnedLeave extends Command
     /**
      * Calculate earned leave for a specific user
      */
-    private function calculateEarnedLeaveForUser(User $user, int $calculationYear, int $currentYear, LeaveType $earnedLeaveType, EarnedLeaveConfig $config, bool $dryRun = false): array
+    private function calculateEarnedLeaveForUser(User $user, int $calculationYear, int $currentYear, LeaveType $earnedLeaveType, EarnedLeaveConfig $config, bool $dryRun = false, $attendanceRecords = null): array
     {
         // Get previous year's earned leave balance (from the year before calculation year)
         $previousYearBalance = $this->getPreviousYearBalance($user, $calculationYear - 1, $earnedLeaveType);
         
         // Calculate days worked in the calculation year (using configuration settings)
-        $daysWorked = $this->calculateDaysWorked($user, $calculationYear, $config);
+        $daysWorked = $this->calculateDaysWorked($user, $calculationYear, $config, $attendanceRecords);
         
         // Calculate carry forward (using configured maximum)
         $carryForward = min($previousYearBalance, $config->max_earned_leave_days);
@@ -228,7 +238,7 @@ class CalculateEarnedLeave extends Command
     /**
      * Calculate days worked in a year (excluding weekends, holidays, and absent days)
      */
-    private function calculateDaysWorked(User $user, int $year, EarnedLeaveConfig $config): int
+    private function calculateDaysWorked(User $user, int $year, EarnedLeaveConfig $config, $attendanceRecords = null): int
     {
         $startDate = Carbon::create($year, 1, 1);
         $endDate = Carbon::create($year, 12, 31);
@@ -242,13 +252,20 @@ class CalculateEarnedLeave extends Command
             })
             ->toArray();
 
-        // Get all attendance records for the user in the year
-        $attendanceRecords = DailyAttendance::where('user_id', $user->id)
-            ->whereBetween('date', [$startDate, $endDate])
-            ->get()
-            ->keyBy(function ($record) {
+        // Use preloaded attendance records or load them if not provided
+        if ($attendanceRecords === null) {
+            $attendanceRecords = DailyAttendance::where('user_id', $user->id)
+                ->whereBetween('date', [$startDate, $endDate])
+                ->get()
+                ->keyBy(function ($record) {
+                    return Carbon::parse($record->date)->format('Y-m-d');
+                });
+        } else {
+            // Convert collection to keyed collection
+            $attendanceRecords = $attendanceRecords->keyBy(function ($record) {
                 return Carbon::parse($record->date)->format('Y-m-d');
             });
+        }
 
         $daysWorked = 0;
         $currentDate = $startDate->copy();

@@ -52,8 +52,9 @@ class AttendanceResource extends Resource
         $user = auth()->user();
         
         if ($user->isAdmin()) {
-            // Admin can see all attendance records
-            return parent::getEloquentQuery();
+            // Admin can see all attendance records with eager loading to prevent N+1 queries
+            return parent::getEloquentQuery()
+                ->with(['user']);
         }
         
         // Only admins can access this resource

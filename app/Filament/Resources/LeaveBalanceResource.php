@@ -56,12 +56,14 @@ class LeaveBalanceResource extends Resource
         $user = auth()->user();
         
         if ($user->isAdmin()) {
-            // Admin can see all leave balances
-            return parent::getEloquentQuery();
-        } elseif ($user->isSupervisor()) {
-            // Supervisor can only see their team's leave balances
+            // Admin can see all leave balances with eager loading to prevent N+1 queries
             return parent::getEloquentQuery()
-                ->whereIn('user_id', $user->subordinates->pluck('id'));
+                ->with(['user', 'leaveType']);
+        } elseif ($user->isSupervisor()) {
+            // Supervisor can only see their team's leave balances with eager loading
+            return parent::getEloquentQuery()
+                ->whereIn('user_id', $user->subordinates->pluck('id'))
+                ->with(['user', 'leaveType']);
         }
         
         // Employees cannot access this resource
