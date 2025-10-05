@@ -35,14 +35,25 @@ class MyAttendance extends Page implements HasTable
 
     public function getTableQuery(): Builder
     {
-        return DailyAttendance::query()
+        $query = DailyAttendance::query()
             ->where('user_id', auth()->id())
-            ->whereMonth('date', $this->selectedMonth)
-            ->whereYear('date', $this->selectedYear)
             ->with(['entries' => function ($query) {
                 $query->orderBy('clock_in')->orderBy('created_at');
-            }])
-            ->orderBy('date', 'desc');
+            }]);
+
+        // If viewing current month, show from first day to today
+        if ($this->selectedMonth == now()->month && $this->selectedYear == now()->year) {
+            $startDate = Carbon::create($this->selectedYear, $this->selectedMonth, 1);
+            $endDate = now();
+            
+            $query->whereBetween('date', [$startDate, $endDate]);
+        } else {
+            // For other months, show the full month
+            $query->whereMonth('date', $this->selectedMonth)
+                  ->whereYear('date', $this->selectedYear);
+        }
+
+        return $query->orderBy('date', 'desc');
     }
 
     public function table(Table $table): Table
