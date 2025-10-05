@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             OfficeTimeSeeder::class,
             HolidaySeeder::class,
             LeaveBalanceSeeder::class,
+            ComprehensiveDataSeeder::class,
         ]);
     }
 }

@@ -32,8 +32,8 @@ class DailyAttendance extends Model
 
     protected $casts = [
         'date' => 'date',
-        'first_clock_in' => 'datetime:H:i',
-        'last_clock_out' => 'datetime:H:i',
+        'first_clock_in' => 'datetime:H:i:s',
+        'last_clock_out' => 'datetime:H:i:s',
         'total_working_hours' => 'decimal:2',
         'office_time_snapshot' => 'array',
     ];
