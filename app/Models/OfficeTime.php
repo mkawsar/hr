@@ -43,7 +43,7 @@ class OfficeTime extends Model
 
     public function attendances(): HasMany
     {
-        return $this->hasMany(Attendance::class);
+        return $this->hasMany(DailyAttendance::class);
     }
 
     /**
@@ -156,6 +156,6 @@ class OfficeTime extends Model
 
         $expectedEnd = Carbon::parse($this->end_time);
         $graceTime = $expectedEnd->copy()->subMinutes($this->early_grace_minutes);
-        return $clockOutTime->diffInMinutes($graceTime);
+        return (int) $clockOutTime->diffInMinutes($graceTime);
     }
 }

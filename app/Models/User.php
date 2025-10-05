@@ -87,7 +87,7 @@ class User extends Authenticatable
 
     public function attendance()
     {
-        return $this->hasMany(Attendance::class);
+        return $this->hasMany(DailyAttendance::class);
     }
 
     public function leaveApplications()
@@ -107,7 +107,7 @@ class User extends Authenticatable
 
     public function adjustedAttendance()
     {
-        return $this->hasMany(Attendance::class, 'adjusted_by');
+        return $this->hasMany(DailyAttendance::class, 'adjusted_by');
     }
 
     public function auditLogs()

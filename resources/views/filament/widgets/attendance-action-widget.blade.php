@@ -33,9 +33,17 @@
                             <div class="text-lg font-semibold {{ $this->isClockedIn ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500' }}">
                                 {{ $this->isClockedIn ? '✓ Clocked In' : 'Not Clocked In' }}
                             </div>
-                            @if($this->openEntry && $this->openEntry['clock_in'])
+                            @php
+                                $firstClockIn = null;
+                                if($this->openEntry && $this->openEntry['clock_in']) {
+                                    $firstClockIn = $this->openEntry['clock_in'];
+                                } elseif(count($this->todayEntries) > 0) {
+                                    $firstClockIn = collect($this->todayEntries)->first()['clock_in'];
+                                }
+                            @endphp
+                            @if($firstClockIn)
                                 <div class="text-xs text-gray-500 dark:text-gray-400">
-                                    {{ \Carbon\Carbon::parse($this->openEntry['clock_in'])->format('H:i:s') }}
+                                    {{ \Carbon\Carbon::parse($firstClockIn)->format('H:i:s') }}
                                 </div>
                             @endif
                         </div>
@@ -51,15 +59,19 @@
                             <div class="text-lg font-semibold {{ $this->isClockedOut ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500' }}">
                                 {{ $this->isClockedOut ? '✓ Clocked Out' : 'Not Clocked Out' }}
                             </div>
-                            @if($this->isClockedOut && count($this->todayEntries) > 0)
-                                @php
+                            @php
+                                $lastClockOut = null;
+                                if(count($this->todayEntries) > 0) {
                                     $lastEntry = collect($this->todayEntries)->where('clock_out', '!=', null)->last();
-                                @endphp
-                                @if($lastEntry)
-                                    <div class="text-xs text-gray-500 dark:text-gray-400">
-                                        {{ \Carbon\Carbon::parse($lastEntry['clock_out'])->format('H:i:s') }}
-                                    </div>
-                                @endif
+                                    if($lastEntry) {
+                                        $lastClockOut = $lastEntry['clock_out'];
+                                    }
+                                }
+                            @endphp
+                            @if($lastClockOut)
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    {{ \Carbon\Carbon::parse($lastClockOut)->format('H:i:s') }}
+                                </div>
                             @endif
                         </div>
                         <x-heroicon-o-arrow-up-circle class="w-8 h-8 {{ $this->isClockedOut ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500' }}" />
@@ -83,34 +95,48 @@
 
             <!-- Action Buttons -->
             <div class="flex flex-col sm:flex-row gap-3">
-                @if(!$this->isClockedIn && $this->isWorkingDay)
-                    <x-filament::button
-                        onclick="performClockIn()"
-                        color="success"
-                        size="lg"
-                        class="flex-1"
-                        icon="heroicon-o-arrow-down-circle"
-                    >
-                        Clock In
-                    </x-filament::button>
-                @elseif($this->isClockedIn && !$this->isClockedOut)
-                    <x-filament::button
-                        onclick="performClockOut()"
-                        color="warning"
-                        size="lg"
-                        class="flex-1"
-                        icon="heroicon-o-arrow-up-circle"
-                    >
-                        Clock Out
-                    </x-filament::button>
-                @elseif($this->isClockedOut)
-                    <div class="flex-1 text-center py-3 px-4 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                        <span class="text-gray-600 dark:text-gray-300 font-medium">Attendance Complete for Today</span>
-                    </div>
+                @if($this->isWorkingDay)
+                    @php
+                        $hasLocation = $this->latitude && $this->longitude;
+                    @endphp
+                    
+                    @if($this->isClockedIn && !$this->isClockedOut)
+                        <!-- Has open entry - show Clock Out button -->
+                        <x-filament::button
+                            wire:click="clockOut"
+                            color="warning"
+                            size="lg"
+                            class="flex-1"
+                            icon="heroicon-o-arrow-up-circle"
+                            :disabled="!$hasLocation"
+                        >
+                            @if($hasLocation)
+                                Clock Out
+                            @else
+                                Clock Out (Location Required)
+                            @endif
+                        </x-filament::button>
+                    @else
+                        <!-- No open entry - show Clock In button -->
+                        <x-filament::button
+                            wire:click="clockIn"
+                            color="success"
+                            size="lg"
+                            class="flex-1"
+                            icon="heroicon-o-arrow-down-circle"
+                            :disabled="!$hasLocation"
+                        >
+                            @if($hasLocation)
+                                Clock In
+                            @else
+                                Clock In (Location Required)
+                            @endif
+                        </x-filament::button>
+                    @endif
                 @endif
 
                 <x-filament::button
-                    wire:click="refreshStatus"
+                    wire:click="manualRefresh"
                     color="gray"
                     size="lg"
                     icon="heroicon-o-arrow-path"
@@ -120,22 +146,42 @@
             </div>
 
             <!-- Location Status -->
-            <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+            @php
+                $hasLocation = $this->latitude && $this->longitude;
+            @endphp
+            <div class="bg-{{ $hasLocation ? 'green' : 'red' }}-50 dark:bg-{{ $hasLocation ? 'green' : 'red' }}-900/20 border border-{{ $hasLocation ? 'green' : 'red' }}-200 dark:border-{{ $hasLocation ? 'green' : 'red' }}-700 rounded-lg p-4">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-2">
-                        <x-heroicon-o-map-pin class="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                        <span class="text-sm text-gray-600 dark:text-gray-300">Location Tracking</span>
+                        <x-heroicon-o-map-pin class="w-4 h-4 text-{{ $hasLocation ? 'green' : 'red' }}-600 dark:text-{{ $hasLocation ? 'green' : 'red' }}-400" />
+                        <span class="text-sm font-medium text-{{ $hasLocation ? 'green' : 'red' }}-800 dark:text-{{ $hasLocation ? 'green' : 'red' }}-200">
+                            @if($hasLocation)
+                                ✅ GPS Location Active
+                            @else
+                                ❌ GPS Location Required
+                            @endif
+                        </span>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <div id="location-status" class="text-sm text-gray-500 dark:text-gray-400">
-                            <span id="location-text">Requesting permission...</span>
+                        <div id="location-status" class="text-sm text-{{ $hasLocation ? 'green' : 'red' }}-600 dark:text-{{ $hasLocation ? 'green' : 'red' }}-400">
+                            <span id="location-text">
+                                @if($hasLocation)
+                                    Location captured
+                                @else
+                                    Getting GPS location...
+                                @endif
+                            </span>
                         </div>
                         <button 
                             id="get-location-btn"
-                            class="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded"
-                            onclick="getCurrentLocation()"
+                            class="text-xs bg-{{ $hasLocation ? 'green' : 'red' }}-100 dark:bg-{{ $hasLocation ? 'green' : 'red' }}-900 text-{{ $hasLocation ? 'green' : 'red' }}-800 dark:text-{{ $hasLocation ? 'green' : 'red' }}-200 px-2 py-1 rounded hover:bg-{{ $hasLocation ? 'green' : 'red' }}-200 dark:hover:bg-{{ $hasLocation ? 'green' : 'red' }}-800 transition-colors"
+                            wire:click="getLocation"
+                            title="Click to get GPS location"
                         >
-                            Get Location
+                            @if($hasLocation)
+                                Update GPS
+                            @else
+                                Get GPS
+                            @endif
                         </button>
                     </div>
                 </div>
@@ -146,6 +192,19 @@
                     <div id="location-address" class="hidden">
                         <span class="font-medium">Address:</span> <span class="text-gray-600 dark:text-gray-300 break-words" id="address-text"></span>
                     </div>
+                    <div class="mt-1 text-xs text-{{ $hasLocation ? 'green' : 'red' }}-600 dark:text-{{ $hasLocation ? 'green' : 'red' }}-400">
+                        <span class="font-medium">Note:</span> GPS location is <strong>REQUIRED</strong> for all clock in/out actions. Please enable location access to use attendance features.
+                    </div>
+                    @if($this->latitude && $this->longitude)
+                        <div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                            <div class="text-xs text-gray-500 dark:text-gray-400">
+                                <span class="font-medium">Widget Location:</span> {{ $this->latitude }}, {{ $this->longitude }}
+                                @if($this->address)
+                                    <br><span class="font-medium">Address:</span> {{ $this->address }}
+                                @endif
+                            </div>
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -208,11 +267,42 @@
 </x-filament-widgets::widget>
 
 <script>
-// Widget-specific initialization
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize location for this widget
-    if (document.getElementById('get-location-btn')) {
-        getCurrentLocation();
-    }
+document.addEventListener('livewire:init', () => {
+    // Listen for location request from widget
+    Livewire.on('requestLocation', () => {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by this browser.');
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                const latitude = position.coords.latitude;
+                const longitude = position.coords.longitude;
+                
+                // Update the display
+                const locationText = document.getElementById('location-text');
+                const latitudeElement = document.getElementById('latitude');
+                const longitudeElement = document.getElementById('longitude');
+                const coordsElement = document.getElementById('location-coords');
+                
+                if (locationText) locationText.textContent = 'Location captured';
+                if (latitudeElement) latitudeElement.textContent = latitude.toFixed(6);
+                if (longitudeElement) longitudeElement.textContent = longitude.toFixed(6);
+                if (coordsElement) coordsElement.classList.remove('hidden');
+                
+                // Directly call the widget method
+                @this.call('setLocation', latitude, longitude, 'GPS Location');
+            },
+            function(error) {
+                alert('Error getting location: ' + error.message);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 300000
+            }
+        );
+    });
 });
 </script>

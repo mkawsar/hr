@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Attendance;
+use App\Models\DailyAttendance;
 use App\Models\User;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -23,11 +23,11 @@ class AttendanceStatsWidget extends BaseWidget
         $today = now()->toDateString();
         
         // Today's attendance stats
-        $presentToday = Attendance::where('date', $today)
+        $presentToday = DailyAttendance::where('date', $today)
             ->where('status', 'present')
             ->count();
             
-        $lateToday = Attendance::where('date', $today)
+        $lateToday = DailyAttendance::where('date', $today)
             ->where('status', 'late')
             ->count();
             

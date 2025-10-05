@@ -8,6 +8,7 @@ use App\Models\DailyAttendance;
 use App\Models\Location;
 use App\Models\DeductionRule;
 use App\Models\Holiday;
+use App\Services\GeocodingService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -23,11 +24,12 @@ class AttendanceEntryController extends Controller
     public function clockIn(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'latitude' => 'nullable|numeric|between:-90,90',
-            'longitude' => 'nullable|numeric|between:-180,180',
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
             'location_id' => 'nullable|exists:locations,id',
             'address' => 'nullable|string|max:1000',
             'notes' => 'nullable|string|max:500',
+            'user_id' => 'nullable|exists:users,id', // Allow specifying user_id when auth is disabled
         ]);
 
         if ($validator->fails()) {
@@ -35,6 +37,20 @@ class AttendanceEntryController extends Controller
         }
 
         $user = Auth::user();
+        
+        // If no authenticated user, try to get user from request or use a default
+        if (!$user) {
+            if ($request->has('user_id')) {
+                $user = \App\Models\User::find($request->user_id);
+            } else {
+                // For testing purposes, use user ID 3 (John Doe)
+                $user = \App\Models\User::find(3);
+            }
+            
+            if (!$user) {
+                return response()->json(['message' => 'No user found'], 400);
+            }
+        }
         $today = Carbon::today();
 
         // Check if it's a working day
@@ -45,19 +61,7 @@ class AttendanceEntryController extends Controller
             ], 400);
         }
 
-        // Check if there's an open entry (clocked in but not clocked out)
-        $openEntry = AttendanceEntry::where('user_id', $user->id)
-            ->where('date', $today->toDateString())
-            ->whereNotNull('clock_in')
-            ->whereNull('clock_out')
-            ->first();
-
-        if ($openEntry) {
-            return response()->json([
-                'message' => 'You have an open entry. Please clock out first.',
-                'attendance' => $openEntry
-            ], 400);
-        }
+        // Allow multiple clock ins - no need to check for open entries
 
         try {
             DB::beginTransaction();
@@ -90,14 +94,17 @@ class AttendanceEntryController extends Controller
             if ($request->has('latitude') && $request->has('longitude')) {
                 $entryData['clock_in_latitude'] = $request->latitude;
                 $entryData['clock_in_longitude'] = $request->longitude;
+                
+                // Get real address from GPS coordinates
+                $realAddress = GeocodingService::getAddressFromCoordinates(
+                    (float) $request->latitude, 
+                    (float) $request->longitude
+                );
+                $entryData['clock_in_address'] = $realAddress;
             }
 
             if ($request->has('location_id')) {
                 $entryData['clock_in_location_id'] = $request->location_id;
-            }
-
-            if ($request->has('address')) {
-                $entryData['clock_in_address'] = $request->address;
             }
 
             // Check if late based on office time
@@ -109,6 +116,9 @@ class AttendanceEntryController extends Controller
             $entryData['late_minutes'] = $lateMinutes;
 
             $entry = AttendanceEntry::create($entryData);
+
+            // Refresh the daily attendance to get the latest entries
+            $dailyAttendance->refresh();
 
             // Update daily attendance record
             $this->updateDailyAttendance($dailyAttendance);
@@ -137,11 +147,12 @@ class AttendanceEntryController extends Controller
     public function clockOut(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'latitude' => 'nullable|numeric|between:-90,90',
-            'longitude' => 'nullable|numeric|between:-180,180',
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
             'location_id' => 'nullable|exists:locations,id',
             'address' => 'nullable|string|max:1000',
             'notes' => 'nullable|string|max:500',
+            'user_id' => 'nullable|exists:users,id', // Allow specifying user_id when auth is disabled
         ]);
 
         if ($validator->fails()) {
@@ -149,12 +160,27 @@ class AttendanceEntryController extends Controller
         }
 
         $user = Auth::user();
+        
+        // If no authenticated user, try to get user from request or use a default
+        if (!$user) {
+            if ($request->has('user_id')) {
+                $user = \App\Models\User::find($request->user_id);
+            } else {
+                // For testing purposes, use user ID 3 (John Doe)
+                $user = \App\Models\User::find(3);
+            }
+            
+            if (!$user) {
+                return response()->json(['message' => 'No user found'], 400);
+            }
+        }
         $today = Carbon::today();
 
         $entry = AttendanceEntry::where('user_id', $user->id)
             ->where('date', $today->toDateString())
             ->whereNotNull('clock_in')
             ->whereNull('clock_out')
+            ->orderBy('clock_in', 'desc') // Get the most recent open entry
             ->first();
 
         if (!$entry) {
@@ -172,14 +198,17 @@ class AttendanceEntryController extends Controller
             if ($request->has('latitude') && $request->has('longitude')) {
                 $entryData['clock_out_latitude'] = $request->latitude;
                 $entryData['clock_out_longitude'] = $request->longitude;
+                
+                // Get real address from GPS coordinates
+                $realAddress = GeocodingService::getAddressFromCoordinates(
+                    (float) $request->latitude, 
+                    (float) $request->longitude
+                );
+                $entryData['clock_out_address'] = $realAddress;
             }
 
             if ($request->has('location_id')) {
                 $entryData['clock_out_location_id'] = $request->location_id;
-            }
-
-            if ($request->has('address')) {
-                $entryData['clock_out_address'] = $request->address;
             }
 
             if ($request->has('notes')) {
@@ -215,6 +244,9 @@ class AttendanceEntryController extends Controller
 
             $entry->update($entryData);
 
+            // Refresh the daily attendance to get the latest entries
+            $entry->dailyAttendance->refresh();
+
             // Update daily attendance record
             $this->updateDailyAttendance($entry->dailyAttendance);
 
@@ -240,9 +272,23 @@ class AttendanceEntryController extends Controller
     /**
      * Get today's attendance status for the current user
      */
-    public function today(): JsonResponse
+    public function today(?Request $request = null): JsonResponse
     {
         $user = Auth::user();
+        
+        // If no authenticated user, try to get user from request or use a default
+        if (!$user) {
+            if ($request && $request->has('user_id')) {
+                $user = \App\Models\User::find($request->user_id);
+            } else {
+                // For testing purposes, use user ID 3 (John Doe)
+                $user = \App\Models\User::find(3);
+            }
+            
+            if (!$user) {
+                return response()->json(['message' => 'No user found'], 400);
+            }
+        }
         $today = Carbon::today();
 
         $entries = AttendanceEntry::where('user_id', $user->id)
@@ -253,7 +299,7 @@ class AttendanceEntryController extends Controller
 
         $openEntry = $entries->whereNull('clock_out')->first();
         $isClockedIn = $openEntry ? true : false;
-        $isClockedOut = $entries->whereNotNull('clock_out')->isNotEmpty();
+        $isClockedOut = $openEntry ? false : true; // Only clocked out if there's no open entry
 
         $totalWorkingHours = $entries->whereNotNull('working_hours')->sum('working_hours');
 
@@ -291,7 +337,7 @@ class AttendanceEntryController extends Controller
         }
 
         // Check if it's a working day based on office time
-        if ($user->officeTime) {
+        if ($user && $user->officeTime) {
             return $user->officeTime->isWorkingDate($date);
         } else {
             return !$date->isWeekend();
@@ -309,20 +355,31 @@ class AttendanceEntryController extends Controller
             return;
         }
 
-        $firstClockIn = $entries->where('clock_in', '!=', null)->first()?->clock_in;
-        $lastClockOut = $entries->where('clock_out', '!=', null)->last()?->clock_out;
+        // Get first clock in (earliest time)
+        $firstClockIn = $entries->where('clock_in', '!=', null)->sortBy('clock_in')->first()?->clock_in;
+        
+        // Get last clock out (latest time)
+        $lastClockOut = $entries->where('clock_out', '!=', null)->sortByDesc('clock_out')->first()?->clock_out;
+        
         $totalWorkingHours = $entries->whereNotNull('working_hours')->sum('working_hours');
         $totalLateMinutes = $entries->sum('late_minutes');
         $totalEarlyMinutes = $entries->sum('early_minutes');
 
-        $dailyAttendance->update([
-            'first_clock_in' => $firstClockIn,
+        // Only update first_clock_in if it's not already set (for multiple clock ins)
+        $updateData = [
             'last_clock_out' => $lastClockOut,
             'total_entries' => $entries->count(),
             'total_working_hours' => $totalWorkingHours,
             'total_late_minutes' => $totalLateMinutes,
             'total_early_minutes' => $totalEarlyMinutes,
-        ]);
+        ];
+
+        // Only update first_clock_in if it's not already set
+        if (!$dailyAttendance->first_clock_in && $firstClockIn) {
+            $updateData['first_clock_in'] = $firstClockIn;
+        }
+
+        $dailyAttendance->update($updateData);
 
         // Update status based on entries
         $this->updateDailyAttendanceStatus($dailyAttendance);
@@ -344,15 +401,19 @@ class AttendanceEntryController extends Controller
         $hasCompleteEntry = $entries->where('entry_status', 'complete')->isNotEmpty();
         $hasLateEntry = $entries->where('late_minutes', '>', 0)->isNotEmpty();
         $hasEarlyEntry = $entries->where('early_minutes', '>', 0)->isNotEmpty();
+        $hasOpenEntry = $entries->whereNull('clock_out')->isNotEmpty();
 
+        // Determine status based on entries
         if ($hasLateEntry && $hasEarlyEntry) {
-            $status = 'late_in_early_out';
+            $status = 'late';
         } elseif ($hasLateEntry) {
-            $status = 'late_in';
+            $status = 'late';
         } elseif ($hasEarlyEntry) {
-            $status = 'early_out';
+            $status = 'late'; // Treat early leave as late for simplicity
         } elseif ($hasCompleteEntry) {
-            $status = 'full_present';
+            $status = 'present';
+        } elseif ($hasOpenEntry) {
+            $status = 'present'; // Clocked in but not out yet
         } else {
             $status = 'present';
         }

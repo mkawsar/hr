@@ -30,11 +30,11 @@ class Location extends Model
 
     public function clockInAttendance()
     {
-        return $this->hasMany(Attendance::class, 'clock_in_location_id');
+        return $this->hasMany(DailyAttendance::class, 'clock_in_location_id');
     }
 
     public function clockOutAttendance()
     {
-        return $this->hasMany(Attendance::class, 'clock_out_location_id');
+        return $this->hasMany(DailyAttendance::class, 'clock_out_location_id');
     }
 }

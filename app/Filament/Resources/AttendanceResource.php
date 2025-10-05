@@ -4,7 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\AttendanceResource\Pages;
 use App\Filament\Resources\AttendanceResource\RelationManagers;
-use App\Models\Attendance;
+use App\Models\DailyAttendance;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class AttendanceResource extends Resource
 {
-    protected static ?string $model = Attendance::class;
+    protected static ?string $model = DailyAttendance::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-clock';
     
@@ -78,10 +78,10 @@ class AttendanceResource extends Resource
                         Forms\Components\DatePicker::make('date')
                             ->required()
                             ->default(now()),
-                        Forms\Components\TimePicker::make('clock_in')
-                            ->label('Clock In Time'),
-                        Forms\Components\TimePicker::make('clock_out')
-                            ->label('Clock Out Time'),
+                        Forms\Components\TimePicker::make('first_clock_in')
+                            ->label('First Clock In Time'),
+                        Forms\Components\TimePicker::make('last_clock_out')
+                            ->label('Last Clock Out Time'),
                         Forms\Components\Select::make('source')
                             ->options([
                                 'office' => 'Office',
@@ -92,55 +92,29 @@ class AttendanceResource extends Resource
                             ->required(),
                         Forms\Components\Select::make('status')
                             ->options([
-                                'full_present' => 'Full Present',
-                                'late_in' => 'Late In',
-                                'early_out' => 'Early Out',
-                                'late_in_early_out' => 'Late In + Early Out',
-                                'present' => 'Present (Legacy)',
-                                'late' => 'Late (Legacy)',
-                                'early_leave' => 'Early Leave (Legacy)',
+                                'present' => 'Present',
+                                'late' => 'Late',
                                 'absent' => 'Absent',
                                 'half_day' => 'Half Day',
                             ])
-                            ->default('full_present')
+                            ->default('present')
                             ->required(),
                     ])->columns(2),
                 
-                Forms\Components\Section::make('Location Information')
-                    ->schema([
-                        Forms\Components\Select::make('clock_in_location_id')
-                            ->relationship('clockInLocation', 'name')
-                            ->label('Clock In Location')
-                            ->searchable()
-                            ->preload(),
-                        Forms\Components\Select::make('clock_out_location_id')
-                            ->relationship('clockOutLocation', 'name')
-                            ->label('Clock Out Location')
-                            ->searchable()
-                            ->preload(),
-                        Forms\Components\TextInput::make('clock_in_latitude')
-                            ->label('Clock In Latitude')
-                            ->numeric()
-                            ->step(0.00000001),
-                        Forms\Components\TextInput::make('clock_in_longitude')
-                            ->label('Clock In Longitude')
-                            ->numeric()
-                            ->step(0.00000001),
-                    ])->columns(2),
                 
                 Forms\Components\Section::make('Adjustment Information')
                     ->schema([
-                        Forms\Components\TextInput::make('late_minutes')
+                        Forms\Components\TextInput::make('total_late_minutes')
                             ->numeric()
-                            ->label('Late Minutes')
+                            ->label('Total Late Minutes')
                             ->default(0),
-                        Forms\Components\TextInput::make('early_minutes')
+                        Forms\Components\TextInput::make('total_early_minutes')
                             ->numeric()
-                            ->label('Early Minutes')
+                            ->label('Total Early Minutes')
                             ->default(0),
-                        Forms\Components\TextInput::make('deduction_amount')
+                        Forms\Components\TextInput::make('total_working_hours')
                             ->numeric()
-                            ->label('Deduction Amount')
+                            ->label('Total Working Hours')
                             ->default(0)
                             ->step(0.01),
                         Forms\Components\Select::make('adjusted_by')
@@ -189,14 +163,14 @@ class AttendanceResource extends Resource
                         in_array($state, ['Saturday', 'Sunday']) => 'warning',
                         default => 'success',
                     }),
-                Tables\Columns\TextColumn::make('clock_in')
+                Tables\Columns\TextColumn::make('first_clock_in')
                     ->time()
                     ->sortable()
-                    ->label('Clock In'),
-                Tables\Columns\TextColumn::make('clock_out')
+                    ->label('First Clock In'),
+                Tables\Columns\TextColumn::make('last_clock_out')
                     ->time()
                     ->sortable()
-                    ->label('Clock Out'),
+                    ->label('Last Clock Out'),
                 Tables\Columns\TextColumn::make('source')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
@@ -207,57 +181,34 @@ class AttendanceResource extends Resource
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'full_present' => 'success',
-                        'late_in' => 'warning',
-                        'early_out' => 'warning',
-                        'late_in_early_out' => 'danger',
-                        'present' => 'success', // Legacy
-                        'late' => 'danger', // Legacy
-                        'early_leave' => 'danger', // Legacy
+                        'present' => 'success',
+                        'late' => 'warning',
                         'absent' => 'danger',
                         'half_day' => 'info',
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'full_present' => 'Full Present',
-                        'late_in' => 'Late In',
-                        'early_out' => 'Early Out',
-                        'late_in_early_out' => 'Late In + Early Out',
                         'present' => 'Present',
                         'late' => 'Late',
-                        'early_leave' => 'Early Leave',
                         'absent' => 'Absent',
                         'half_day' => 'Half Day',
                         default => ucfirst(str_replace('_', ' ', $state)),
                     }),
-                Tables\Columns\TextColumn::make('late_minutes')
+                Tables\Columns\TextColumn::make('total_late_minutes')
                     ->numeric()
                     ->label('Late (min)')
                     ->sortable()
                     ->color(fn ($state): string => $state > 0 ? 'danger' : 'gray')
                     ->weight(fn ($state): string => $state > 0 ? 'bold' : 'normal'),
-                Tables\Columns\TextColumn::make('early_minutes')
+                Tables\Columns\TextColumn::make('total_early_minutes')
                     ->numeric()
                     ->label('Early (min)')
                     ->sortable()
                     ->color(fn ($state): string => $state > 0 ? 'danger' : 'gray')
                     ->weight(fn ($state): string => $state > 0 ? 'bold' : 'normal'),
-                Tables\Columns\TextColumn::make('working_hours')
+                Tables\Columns\TextColumn::make('total_working_hours')
                     ->label('Working Hours')
-                    ->getStateUsing(function ($record): string {
-                        if ($record->clock_in && $record->clock_out) {
-                            $totalMinutes = \Carbon\Carbon::parse($record->clock_in)->diffInMinutes(\Carbon\Carbon::parse($record->clock_out));
-                            $totalHours = round($totalMinutes / 60, 2);
-                            return number_format($totalHours, 2) . 'h';
-                        }
-                        return '-';
-                    }),
-                Tables\Columns\TextColumn::make('deduction_amount')
-                    ->money('USD')
-                    ->label('Deduction')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('clockInLocation.name')
-                    ->label('Location')
-                    ->searchable(),
+                    ->numeric()
+                    ->formatStateUsing(fn ($state): string => $state ? number_format($state, 2) . 'h' : '-'),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -269,7 +220,6 @@ class AttendanceResource extends Resource
                         'present' => 'Present',
                         'absent' => 'Absent',
                         'late' => 'Late',
-                        'early_leave' => 'Early Leave',
                         'half_day' => 'Half Day',
                     ]),
                 Tables\Filters\SelectFilter::make('source')

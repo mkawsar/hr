@@ -3,7 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Models\User;
-use App\Models\Attendance;
+use App\Models\DailyAttendance;
 use App\Models\LeaveApplication;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -23,7 +23,7 @@ class StatsOverview extends BaseWidget
 
         $totalEmployees = User::count();
         $activeEmployees = User::where('status', 'active')->count();
-        $presentToday = Attendance::where('date', today()->toDateString())->where('status', 'present')->count();
+        $presentToday = DailyAttendance::where('date', today()->toDateString())->where('status', 'present')->count();
         $pendingLeaves = LeaveApplication::where('status', 'pending')->count();
 
         return [
