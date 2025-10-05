@@ -14,51 +14,50 @@ class LeaveStatsWidget extends BaseWidget
     {
         $user = Auth::user();
         
-        // Only show company-wide leave stats to admins
-        if (!$user || !$user->isAdmin()) {
+        if (!$user) {
             return [];
         }
 
-        $pendingLeaves = LeaveApplication::where('status', 'pending')->count();
-        $approvedThisMonth = LeaveApplication::where('status', 'approved')
-            ->whereMonth('approved_at', now()->month)
-            ->whereYear('approved_at', now()->year)
+        $startOfMonth = now()->startOfMonth();
+        
+        // Show only logged-in user's leave data from first date of current month to today
+        $pendingLeaves = LeaveApplication::where('user_id', $user->id)
+            ->where('status', 'pending')
             ->count();
-        $totalLeaveDays = LeaveApplication::where('status', 'approved')
-            ->whereMonth('start_date', now()->month)
+            
+        $approvedThisMonth = LeaveApplication::where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->whereBetween('approved_at', [$startOfMonth, now()])
+            ->count();
+            
+        $totalLeaveDays = LeaveApplication::where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->whereBetween('start_date', [$startOfMonth, now()])
+            ->sum('days_count');
+            
+        $totalLeaveDaysThisYear = LeaveApplication::where('user_id', $user->id)
+            ->where('status', 'approved')
             ->whereYear('start_date', now()->year)
             ->sum('days_count');
-        $averageLeaveDays = LeaveApplication::where('status', 'approved')
-            ->whereMonth('start_date', now()->month)
-            ->whereYear('start_date', now()->year)
-            ->avg('days_count');
 
         return [
-            Stat::make('Pending Leave Requests', $pendingLeaves)
-                ->description('Awaiting approval')
-                ->descriptionIcon('heroicon-o-clock')
+            Stat::make('Pending', $pendingLeaves)
+                ->description('Leave requests')
                 ->color('warning'),
             
-            Stat::make('Approved This Month', $approvedThisMonth)
-                ->description('Leave applications approved')
-                ->descriptionIcon('heroicon-o-check-circle')
+            Stat::make('Approved', $approvedThisMonth)
+                ->description('This month')
                 ->color('success'),
             
-            Stat::make('Total Leave Days', number_format($totalLeaveDays, 1))
-                ->description('Days taken this month')
-                ->descriptionIcon('heroicon-o-calendar')
+            Stat::make('Leave Days', number_format($totalLeaveDaysThisYear, 0))
+                ->description('This year')
                 ->color('info'),
-            
-            Stat::make('Average Leave Duration', number_format($averageLeaveDays ?? 0, 1))
-                ->description('Days per application')
-                ->descriptionIcon('heroicon-o-chart-bar-square')
-                ->color('primary'),
         ];
     }
 
     public static function canView(): bool
     {
         $user = Auth::user();
-        return $user && $user->isAdmin();
+        return $user !== null;
     }
 }

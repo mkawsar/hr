@@ -26,7 +26,7 @@ class AttendanceResource extends Resource
     public static function canViewAny(): bool
     {
         $user = auth()->user();
-        return $user && ($user->isAdmin() || $user->isSupervisor());
+        return $user && $user->isAdmin();
     }
 
     public static function canCreate(): bool
@@ -54,13 +54,9 @@ class AttendanceResource extends Resource
         if ($user->isAdmin()) {
             // Admin can see all attendance records
             return parent::getEloquentQuery();
-        } elseif ($user->isSupervisor()) {
-            // Supervisor can only see their team's attendance records
-            return parent::getEloquentQuery()
-                ->whereIn('user_id', $user->subordinates->pluck('id'));
         }
         
-        // Employees cannot access this resource (they use MyAttendance page)
+        // Only admins can access this resource
         return parent::getEloquentQuery()->whereRaw('1 = 0');
     }
 

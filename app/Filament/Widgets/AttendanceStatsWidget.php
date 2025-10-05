@@ -15,56 +15,64 @@ class AttendanceStatsWidget extends BaseWidget
     {
         $user = Auth::user();
         
-        // Only show company-wide attendance stats to admins
-        if (!$user || !$user->isAdmin()) {
+        if (!$user) {
             return [];
         }
 
-        $today = now()->toDateString();
+        $startOfMonth = now()->startOfMonth();
         
-        // Today's attendance stats
-        $presentToday = DailyAttendance::where('date', $today)
+        // User's attendance stats from first date of current month to today
+        $presentThisMonth = DailyAttendance::where('user_id', $user->id)
+            ->whereBetween('date', [$startOfMonth, now()])
             ->where('status', 'present')
             ->count();
             
-        $lateToday = DailyAttendance::where('date', $today)
+        $lateThisMonth = DailyAttendance::where('user_id', $user->id)
+            ->whereBetween('date', [$startOfMonth, now()])
             ->where('status', 'late')
             ->count();
             
-        $absentToday = User::where('status', 'active')
-            ->whereDoesntHave('attendance', function ($query) use ($today) {
-                $query->whereDate('date', $today);
-            })
-            ->count();
+        // Count absent days as working days with no attendance entries
+        $absentThisMonth = 0;
+        $currentDate = $startOfMonth->copy();
+        while ($currentDate->lte(now())) {
+            // Check if it's a working day (Monday to Friday)
+            if ($currentDate->isWeekday()) {
+                // Check if user has no attendance record for this date
+                $hasAttendance = DailyAttendance::where('user_id', $user->id)
+                    ->whereDate('date', $currentDate)
+                    ->exists();
+                    
+                if (!$hasAttendance) {
+                    $absentThisMonth++;
+                }
+            }
+            $currentDate->addDay();
+        }
             
-        $totalActiveEmployees = User::where('status', 'active')->count();
+        $totalWorkingDays = DailyAttendance::where('user_id', $user->id)
+            ->whereBetween('date', [$startOfMonth, now()])
+            ->whereIn('status', ['present', 'late'])
+            ->count();
 
         return [
-            Stat::make('Present Today', $presentToday)
-                ->description('Employees present today')
-                ->descriptionIcon('heroicon-o-check-circle')
+            Stat::make('Present', $presentThisMonth)
+                ->description('This month')
                 ->color('success'),
             
-            Stat::make('Late Today', $lateToday)
-                ->description('Employees late today')
-                ->descriptionIcon('heroicon-o-clock')
-                ->color('danger'), // Red color for late employees
+            Stat::make('Late', $lateThisMonth)
+                ->description('This month')
+                ->color('warning'),
             
-            Stat::make('Absent Today', $absentToday)
-                ->description('Employees absent today')
-                ->descriptionIcon('heroicon-o-x-circle')
+            Stat::make('Absent', $absentThisMonth)
+                ->description('This month')
                 ->color('danger'),
-            
-            Stat::make('Total Active Employees', $totalActiveEmployees)
-                ->description('All active employees')
-                ->descriptionIcon('heroicon-o-users')
-                ->color('primary'),
         ];
     }
 
     public static function canView(): bool
     {
         $user = Auth::user();
-        return $user && $user->isAdmin();
+        return $user !== null;
     }
 }

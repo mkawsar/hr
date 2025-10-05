@@ -38,7 +38,7 @@ class UserResource extends Resource
     public static function canViewAny(): bool
     {
         $user = auth()->user();
-        return $user && ($user->isAdmin() || $user->isSupervisor());
+        return $user && $user->isAdmin();
     }
 
     public static function canCreate(): bool
@@ -50,14 +50,7 @@ class UserResource extends Resource
     public static function canEdit($record): bool
     {
         $user = auth()->user();
-        if ($user->isAdmin()) {
-            return true;
-        }
-        if ($user->isSupervisor()) {
-            // Supervisor can only edit their team members
-            return $user->subordinates->contains('id', $record->id);
-        }
-        return false;
+        return $user && $user->isAdmin();
     }
 
     public static function canDelete($record): bool
@@ -73,13 +66,9 @@ class UserResource extends Resource
         if ($user->isAdmin()) {
             // Admin can see all users
             return parent::getEloquentQuery();
-        } elseif ($user->isSupervisor()) {
-            // Supervisor can only see their team members
-            return parent::getEloquentQuery()
-                ->whereIn('id', $user->subordinates->pluck('id'));
         }
         
-        // Employees cannot access this resource
+        // Only admins can access this resource
         return parent::getEloquentQuery()->whereRaw('1 = 0');
     }
 

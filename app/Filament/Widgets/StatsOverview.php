@@ -16,35 +16,63 @@ class StatsOverview extends BaseWidget
     {
         $user = Auth::user();
         
-        // Only show company-wide stats to admins
-        if (!$user || !$user->isAdmin()) {
+        if (!$user) {
             return [];
         }
 
-        $totalEmployees = User::count();
-        $activeEmployees = User::where('status', 'active')->count();
-        $presentToday = DailyAttendance::where('date', today()->toDateString())->where('status', 'present')->count();
-        $pendingLeaves = LeaveApplication::where('status', 'pending')->count();
+        // Show only logged-in user's data
+        $today = today()->toDateString();
+        
+        // User's attendance today
+        $attendanceToday = DailyAttendance::where('user_id', $user->id)
+            ->where('date', $today)
+            ->first();
+            
+        $presentToday = $attendanceToday && $attendanceToday->status === 'present' ? 1 : 0;
+        
+        // User's pending leave applications
+        $pendingLeaves = LeaveApplication::where('user_id', $user->id)
+            ->where('status', 'pending')
+            ->count();
+            
+        // User's approved leaves from first date of current month to today
+        $startOfMonth = now()->startOfMonth();
+            
+        // User's total working days from first date of current month to today
+        $workingDaysThisMonth = DailyAttendance::where('user_id', $user->id)
+            ->whereBetween('date', [$startOfMonth, now()])
+            ->whereIn('status', ['present', 'late'])
+            ->count();
+            
+        // Count absent days as working days with no attendance entries
+        $absentThisMonth = 0;
+        $currentDate = $startOfMonth->copy();
+        while ($currentDate->lte(now())) {
+            // Check if it's a working day (Monday to Friday)
+            if ($currentDate->isWeekday()) {
+                // Check if user has no attendance record for this date
+                $hasAttendance = DailyAttendance::where('user_id', $user->id)
+                    ->whereDate('date', $currentDate)
+                    ->exists();
+                    
+                if (!$hasAttendance) {
+                    $absentThisMonth++;
+                }
+            }
+            $currentDate->addDay();
+        }
 
         return [
-            Stat::make('Total Employees', $totalEmployees)
-                ->description('All employees in the system')
-                ->descriptionIcon('heroicon-o-users')
+            Stat::make('Today\'s Status', $presentToday ? 'Present' : 'Absent')
+                ->description($presentToday ? 'You are present today' : 'You are absent today')
+                ->color($presentToday ? 'success' : 'danger'),
+            
+            Stat::make('Working Days', $workingDaysThisMonth)
+                ->description('Present this month')
                 ->color('primary'),
             
-            Stat::make('Active Employees', $activeEmployees)
-                ->description('Currently active employees')
-                ->descriptionIcon('heroicon-o-check-circle')
-                ->color('success'),
-            
-            Stat::make('Present Today', $presentToday)
-                ->description('Employees present today')
-                ->descriptionIcon('heroicon-o-calendar')
-                ->color('info'),
-            
-            Stat::make('Pending Leave Requests', $pendingLeaves)
+            Stat::make('Pending Leaves', $pendingLeaves)
                 ->description('Awaiting approval')
-                ->descriptionIcon('heroicon-o-clock')
                 ->color('warning'),
         ];
     }
@@ -52,6 +80,6 @@ class StatsOverview extends BaseWidget
     public static function canView(): bool
     {
         $user = Auth::user();
-        return $user && $user->isAdmin();
+        return $user !== null;
     }
 }
