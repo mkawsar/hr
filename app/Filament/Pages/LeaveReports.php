@@ -23,6 +23,12 @@ class LeaveReports extends Page
     protected static ?string $navigationLabel = 'Leave Reports';
     protected static ?string $title = 'Leave Reports';
     protected static ?string $navigationGroup = 'Reports';
+    
+    // Disable widgets on this page
+    public function getWidgets(): array
+    {
+        return [];
+    }
 
     public ?array $data = [];
     public $reportType = 'balance';
@@ -40,6 +46,20 @@ class LeaveReports extends Page
             'status' => null,
             'approver_id' => null,
         ]);
+        
+        // Set the data property for form submission
+        $this->data = [
+            'report_type' => 'balance',
+            'year' => 2025,
+            'start_date' => Carbon::now()->startOfMonth(),
+            'end_date' => Carbon::now()->endOfMonth(),
+            'department_id' => null,
+            'status' => null,
+            'approver_id' => null,
+        ];
+        
+        // Auto-generate report on page load
+        $this->generateReport();
     }
 
     public function form(Form $form): Form
@@ -289,6 +309,7 @@ class LeaveReports extends Page
                 ->send();
         }
     }
+
 
     public function getReportColumns(): array
     {
