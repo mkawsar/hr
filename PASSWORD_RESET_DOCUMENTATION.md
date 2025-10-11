@@ -11,6 +11,7 @@ The HR Admin system now includes comprehensive password reset and change passwor
 - **Functionality**: Users can request a password reset by entering their email address
 - **Email**: Custom HTML email template with secure reset link
 - **Security**: Tokens expire after 60 minutes (configurable)
+- **Notification**: Immediate confirmation email sent when request is submitted
 
 ### 2. Password Reset Form
 - **URL**: `/password/reset/{token}`
@@ -43,6 +44,7 @@ The HR Admin system now includes comprehensive password reset and change passwor
 #### Notifications
 - `app/Notifications/ResetPasswordNotification.php` - Custom email template
 - `app/Notifications/PasswordResetConfirmation.php` - Confirmation email notification
+- `app/Notifications/ForgotPasswordRequestNotification.php` - Forgot password request notification
 
 #### Views
 - `resources/views/auth/passwords/email.blade.php` - Password reset request form
@@ -50,6 +52,7 @@ The HR Admin system now includes comprehensive password reset and change passwor
 - `resources/views/auth/change-password.blade.php` - Change password form
 - `resources/views/emails/password-reset.blade.php` - Password reset email template
 - `resources/views/emails/password-reset-confirmation.blade.php` - Confirmation email template
+- `resources/views/emails/forgot-password-request.blade.php` - Forgot password request notification template
 - `resources/views/filament/pages/change-password.blade.php` - Filament page
 
 #### Pages
@@ -69,6 +72,7 @@ The HR Admin system now includes comprehensive password reset and change passwor
    - Go to `/password/reset`
    - Enter email address
    - Click "Send Reset Link"
+   - Receive immediate confirmation email
 
 2. **Reset Password**:
    - Check email for reset link
@@ -119,6 +123,13 @@ The HR Admin system now includes comprehensive password reset and change passwor
 - **Audit Trail**: Provides record of password change events
 - **Immediate Alert**: Users are notified instantly when password is changed
 
+### Forgot Password Request Notification
+- **Immediate Confirmation**: Users receive instant notification when they request password reset
+- **Request Details**: Includes timestamp, IP address, and device information
+- **Next Steps Guide**: Clear instructions on what to expect next
+- **Security Warnings**: Alerts users if they didn't request the reset
+- **Professional Communication**: Keeps users informed throughout the process
+
 ## Email Configuration
 
 ### Required Environment Variables
@@ -155,6 +166,13 @@ Edit email templates to customize:
 - Security information display
 - Reset details (time, IP, device)
 - Security warnings
+
+**Forgot Password Request Email** (`resources/views/emails/forgot-password-request.blade.php`):
+- Company branding
+- Request confirmation
+- Next steps instructions
+- Security warnings
+- Request details (time, IP, device)
 
 ### Password Requirements
 Modify validation rules in:

@@ -79,7 +79,7 @@
             <!-- Back to Login -->
             <div class="mt-6 text-center">
                 <a 
-                    href="{{ route('login') }}" 
+                    href="{{ route('filament.admin.auth.login') }}" 
                     class="text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center"
                 >
                     <i class="fas fa-arrow-left mr-2"></i>

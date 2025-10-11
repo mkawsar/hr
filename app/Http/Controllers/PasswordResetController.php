@@ -11,6 +11,7 @@ use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use App\Notifications\PasswordResetConfirmation;
+use App\Notifications\ForgotPasswordRequestNotification;
 
 class PasswordResetController extends Controller
 {
@@ -40,7 +41,16 @@ class PasswordResetController extends Controller
         );
 
         if ($status === Password::RESET_LINK_SENT) {
-            return back()->with('status', 'Password reset link has been sent to your email address.');
+            // Send forgot password request notification
+            $user = User::where('email', $request->email)->first();
+            if ($user) {
+                $user->notify(new ForgotPasswordRequestNotification(
+                    $request->ip(),
+                    $request->userAgent()
+                ));
+            }
+            
+            return back()->with('status', 'Password reset link has been sent to your email address. Please check your email for further instructions.');
         }
 
         return back()->withErrors(['email' => __($status)]);
@@ -92,7 +102,7 @@ class PasswordResetController extends Controller
         );
 
         if ($status === Password::PASSWORD_RESET) {
-            return redirect()->route('login')->with('status', 'Your password has been reset successfully. You can now log in with your new password.');
+            return redirect()->route('filament.admin.auth.login')->with('status', 'Your password has been reset successfully. You can now log in with your new password.');
         }
 
         return back()->withErrors(['email' => [__($status)]]);
