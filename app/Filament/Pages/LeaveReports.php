@@ -57,9 +57,6 @@ class LeaveReports extends Page
             'status' => null,
             'approver_id' => null,
         ];
-        
-        // Auto-generate report on page load
-        $this->generateReport();
     }
 
     public function form(Form $form): Form
