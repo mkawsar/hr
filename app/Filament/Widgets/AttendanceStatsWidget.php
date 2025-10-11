@@ -33,17 +33,22 @@ class AttendanceStatsWidget extends BaseWidget
             ->count();
             
         // Count absent days as working days with no attendance entries
+        // Optimize by getting all attendance records for the month in one query
+        $attendanceRecords = DailyAttendance::where('user_id', $user->id)
+            ->whereBetween('date', [$startOfMonth, now()])
+            ->pluck('date')
+            ->map(function ($date) {
+                return \Carbon\Carbon::parse($date)->toDateString();
+            })
+            ->toArray();
+            
         $absentThisMonth = 0;
         $currentDate = $startOfMonth->copy();
         while ($currentDate->lte(now())) {
             // Check if it's a working day (Monday to Friday)
             if ($currentDate->isWeekday()) {
                 // Check if user has no attendance record for this date
-                $hasAttendance = DailyAttendance::where('user_id', $user->id)
-                    ->whereDate('date', $currentDate)
-                    ->exists();
-                    
-                if (!$hasAttendance) {
+                if (!in_array($currentDate->toDateString(), $attendanceRecords)) {
                     $absentThisMonth++;
                 }
             }

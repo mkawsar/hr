@@ -143,8 +143,10 @@ class LeaveApplicationResource extends Resource
         $user = auth()->user();
         
         if ($user->isEmployee() || $user->isSupervisor()) {
-            // Employees and supervisors can only see their own applications
-            return parent::getEloquentQuery()->where('user_id', $user->id);
+            // Employees and supervisors can only see their own applications with eager loading
+            return parent::getEloquentQuery()
+                ->where('user_id', $user->id)
+                ->with(['user', 'leaveType', 'approvedBy']);
         }
         
         // Admins cannot access this resource

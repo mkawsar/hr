@@ -144,7 +144,8 @@ class User extends Authenticatable
     public function getTeamPendingLeaves()
     {
         if ($this->isSupervisor()) {
-            return LeaveApplication::whereIn('user_id', $this->subordinates->pluck('id'))
+            // Use eager loading to avoid N+1 queries
+            return LeaveApplication::whereIn('user_id', $this->subordinates()->pluck('id'))
                 ->where('status', 'pending')
                 ->with(['user', 'leaveType'])
                 ->get();
@@ -160,7 +161,8 @@ class User extends Authenticatable
         }
         
         if ($this->isSupervisor()) {
-            return $this->subordinates->contains('id', $leaveApplication->user_id);
+            // Use query instead of loading all subordinates to avoid N+1
+            return $this->subordinates()->where('id', $leaveApplication->user_id)->exists();
         }
         
         return false;

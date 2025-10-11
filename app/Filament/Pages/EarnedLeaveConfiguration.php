@@ -22,7 +22,6 @@ use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Actions\Action as PageAction;
 use Filament\Notifications\Notification;
-use Illuminate\Database\Eloquent\Builder;
 
 class EarnedLeaveConfiguration extends Page implements HasForms, HasTable
 {

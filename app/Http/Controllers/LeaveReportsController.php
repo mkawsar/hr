@@ -9,8 +9,6 @@ use App\Models\LeaveType;
 use App\Models\Department;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Exports\LeaveBalanceReportExport;
@@ -40,9 +38,12 @@ class LeaveReportsController extends Controller
         }
 
         $leaveBalances = $query->get();
+        
+        // Pre-load all departments to avoid N+1 queries
+        $departments = Department::all()->keyBy('id');
 
         // Group by user for better presentation
-        $groupedData = $leaveBalances->groupBy('user_id')->map(function ($balances, $userId) {
+        $groupedData = $leaveBalances->groupBy('user_id')->map(function ($balances, $userId) use ($departments) {
             $user = $balances->first()->user;
             
             // Debug department information
@@ -50,8 +51,8 @@ class LeaveReportsController extends Controller
             if ($user->department) {
                 $departmentName = $user->department->name;
             } elseif ($user->department_id) {
-                // If department_id exists but relationship not loaded, try to get it
-                $department = \App\Models\Department::find($user->department_id);
+                // Use pre-loaded departments to avoid N+1 queries
+                $department = $departments->get($user->department_id);
                 $departmentName = $department ? $department->name : 'Department ID: ' . $user->department_id;
             }
             
@@ -83,10 +84,11 @@ class LeaveReportsController extends Controller
         }
 
         if ($format === 'pdf') {
+            $departmentName = $departmentId ? $departments->get($departmentId)->name ?? 'Unknown Department' : 'All Departments';
             $pdf = Pdf::loadView('reports.leave-balance-pdf', [
                 'data' => $groupedData,
                 'year' => $year,
-                'department' => $departmentId ? Department::find($departmentId)->name : 'All Departments'
+                'department' => $departmentName
             ]);
             return $pdf->download("leave_balance_report_{$year}.pdf");
         }
@@ -174,12 +176,14 @@ class LeaveReportsController extends Controller
         }
 
         if ($format === 'pdf') {
+            // Pre-load department to avoid N+1 query
+            $departmentName = $departmentId ? Department::find($departmentId)->name ?? 'Unknown Department' : 'All Departments';
             $pdf = Pdf::loadView('reports.leave-summary-pdf', [
                 'data' => $summaryData,
                 'statistics' => $statistics,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
-                'department' => $departmentId ? Department::find($departmentId)->name : 'All Departments'
+                'department' => $departmentName
             ]);
             return $pdf->download("leave_summary_report_{$startDate}_{$endDate}.pdf");
         }
@@ -321,9 +325,11 @@ class LeaveReportsController extends Controller
         }
 
         if ($format === 'pdf') {
+            // Pre-load department to avoid N+1 query
+            $departmentName = $departmentId ? Department::find($departmentId)->name ?? 'Unknown Department' : 'All Departments';
             $pdf = Pdf::loadView('reports.leave-analysis-pdf', [
                 'data' => $analysisData,
-                'department' => $departmentId ? Department::find($departmentId)->name : 'All Departments'
+                'department' => $departmentName
             ]);
             return $pdf->download("leave_analysis_report_{$year}.pdf");
         }
@@ -419,12 +425,14 @@ class LeaveReportsController extends Controller
         }
 
         if ($format === 'pdf') {
+            // Pre-load approver to avoid N+1 query
+            $approverName = $approverId ? User::find($approverId)->name ?? 'Unknown Approver' : 'All Approvers';
             $pdf = Pdf::loadView('reports.leave-approval-history-pdf', [
                 'data' => $historyData,
                 'statistics' => $approvalStats,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
-                'approver' => $approverId ? User::find($approverId)->name : 'All Approvers'
+                'approver' => $approverName
             ]);
             return $pdf->download("leave_approval_history_{$startDate}_{$endDate}.pdf");
         }
@@ -447,9 +455,12 @@ class LeaveReportsController extends Controller
     {
         $departments = Department::select('id', 'name')->get();
         $leaveTypes = LeaveType::select('id', 'name', 'code')->where('active', true)->get();
-        $approvers = User::whereHas('leaveApplications', function ($query) {
-            $query->whereNotNull('approved_by');
-        })->select('id', 'name')->distinct()->get();
+        
+        // Optimize approvers query to avoid N+1
+        $approvers = User::whereHas('approvedLeaveApplications')
+            ->select('id', 'name')
+            ->distinct()
+            ->get();
 
         return response()->json([
             'departments' => $departments,

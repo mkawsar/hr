@@ -23,6 +23,8 @@ class OfficeTimeAssignmentWidget extends BaseWidget
         }
 
         // Show only logged-in user's office time information
+        // Eager load office time to avoid N+1 query
+        $user = $user->load('officeTime');
         $hasOfficeTime = $user->office_time_id !== null;
         $officeTime = $user->officeTime;
         

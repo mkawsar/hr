@@ -62,7 +62,7 @@ class LeaveBalanceResource extends Resource
         } elseif ($user->isSupervisor()) {
             // Supervisor can only see their team's leave balances with eager loading
             return parent::getEloquentQuery()
-                ->whereIn('user_id', $user->subordinates->pluck('id'))
+                ->whereIn('user_id', $user->subordinates()->pluck('id'))
                 ->with(['user', 'leaveType']);
         }
         

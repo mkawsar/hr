@@ -46,14 +46,19 @@ class ProcessMonthlyDeductions extends Command
         $startDate = Carbon::create($year, $month, 1)->startOfMonth();
         $endDate = Carbon::create($year, $month, 1)->endOfMonth();
 
-        // Get all active users
-        $users = User::where('status', 'active')->get();
+        // Get all active users with eager loading to prevent N+1 queries
+        $users = User::where('status', 'active')
+            ->with(['leaveBalances.leaveType'])
+            ->get();
+        
+        // Pre-load leave types to avoid N+1 queries in the loop
+        $leaveTypes = LeaveType::whereIn('code', ['casual', 'earned'])->get()->keyBy('code');
         
         $totalProcessed = 0;
         $totalDeductions = 0;
 
         foreach ($users as $user) {
-            $this->processUserDeductions($user, $startDate, $endDate, $dryRun);
+            $this->processUserDeductions($user, $startDate, $endDate, $dryRun, $leaveTypes);
             $totalProcessed++;
         }
 
@@ -61,7 +66,7 @@ class ProcessMonthlyDeductions extends Command
         $this->info("Total deductions processed: {$totalDeductions}");
     }
 
-    private function processUserDeductions(User $user, Carbon $startDate, Carbon $endDate, bool $dryRun = false)
+    private function processUserDeductions(User $user, Carbon $startDate, Carbon $endDate, bool $dryRun = false, $leaveTypes = null)
     {
         // Check if deduction already processed for this month (check for existing leave applications)
         $existingDeduction = LeaveApplication::where('user_id', $user->id)
@@ -118,10 +123,10 @@ class ProcessMonthlyDeductions extends Command
         }
 
         // Process the deduction
-        $this->processDeduction($user, $startDate, $lateEarlyCount, $absentCount, $totalDeductionDays, $lateEarlyEntries, $absentDays);
+        $this->processDeduction($user, $startDate, $lateEarlyCount, $absentCount, $totalDeductionDays, $lateEarlyEntries, $absentDays, $leaveTypes);
     }
 
-    private function processDeduction(User $user, Carbon $deductionMonth, int $lateEarlyCount, int $absentCount, float $totalDeductionDays, $lateEarlyEntries, $absentDays)
+    private function processDeduction(User $user, Carbon $deductionMonth, int $lateEarlyCount, int $absentCount, float $totalDeductionDays, $lateEarlyEntries, $absentDays, $leaveTypes = null)
     {
         DB::beginTransaction();
 
@@ -132,8 +137,9 @@ class ProcessMonthlyDeductions extends Command
             $cashDeductionAmount = 0;
 
             // Get leave types in priority order (casual first, then earned)
-            $casualLeaveType = LeaveType::where('code', 'casual')->first();
-            $earnedLeaveType = LeaveType::where('code', 'earned')->first();
+            // Use pre-loaded leave types to avoid N+1 queries
+            $casualLeaveType = $leaveTypes ? $leaveTypes->get('casual') : LeaveType::where('code', 'casual')->first();
+            $earnedLeaveType = $leaveTypes ? $leaveTypes->get('earned') : LeaveType::where('code', 'earned')->first();
 
             $remainingDeduction = $totalDeductionDays;
 
