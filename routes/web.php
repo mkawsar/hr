@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\LeaveReportsController;
+use App\Http\Controllers\PasswordResetController;
 
 Route::get('/', function () {
     return redirect('/admin/login');
@@ -27,4 +28,21 @@ Route::middleware('auth')->prefix('reports/leave')->name('reports.leave.')->grou
     
     // Get filter options for reports
     Route::get('/filter-options', [LeaveReportsController::class, 'getFilterOptions'])->name('filter-options');
+});
+
+// Password Reset Routes
+Route::prefix('password')->name('password.')->group(function () {
+    // Password reset request
+    Route::get('/reset', [PasswordResetController::class, 'showResetRequestForm'])->name('request');
+    Route::post('/email', [PasswordResetController::class, 'sendResetLinkEmail'])->name('email');
+    
+    // Password reset form
+    Route::get('/reset/{token}', [PasswordResetController::class, 'showResetForm'])->name('reset');
+    Route::post('/reset', [PasswordResetController::class, 'reset'])->name('update');
+    
+    // Change password for authenticated users
+    Route::middleware('auth')->group(function () {
+        Route::get('/change', [PasswordResetController::class, 'showChangePasswordForm'])->name('change');
+        Route::post('/change', [PasswordResetController::class, 'changePassword'])->name('change');
+    });
 });
