@@ -16,7 +16,7 @@ class ResetPasswordNotification extends BaseResetPasswordNotification
             return call_user_func(static::$toMailCallback, $notifiable, $this->token);
         }
 
-        return $this->buildMailMessage($this->resetUrl($notifiable));
+        return $this->buildMailMessage($this->resetUrl($notifiable), $notifiable);
     }
 
     /**
@@ -37,12 +37,12 @@ class ResetPasswordNotification extends BaseResetPasswordNotification
     /**
      * Build the mail message.
      */
-    protected function buildMailMessage($url)
+    protected function buildMailMessage($url, $notifiable = null)
     {
         return (new MailMessage)
             ->subject('Reset Password - HR Admin System')
             ->view('emails.password-reset', [
-                'user' => $this->user ?? null,
+                'user' => $notifiable,
                 'resetUrl' => $url,
             ]);
     }

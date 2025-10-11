@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use Filament\Notifications\Notification;
+use App\Notifications\PasswordResetConfirmation;
 
 class ChangePassword extends Page
 {
@@ -90,12 +91,18 @@ class ChangePassword extends Page
             'password' => Hash::make($data['password'])
         ]);
 
+        // Send confirmation email
+        $user->notify(new PasswordResetConfirmation(
+            request()->ip(),
+            request()->userAgent()
+        ));
+
         // Clear form
         $this->form->fill();
 
         Notification::make()
             ->title('Success')
-            ->body('Your password has been changed successfully.')
+            ->body('Your password has been changed successfully. A confirmation email has been sent to your email address.')
             ->success()
             ->send();
     }

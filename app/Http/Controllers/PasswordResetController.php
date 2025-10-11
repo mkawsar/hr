@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules\Password as PasswordRule;
+use App\Notifications\PasswordResetConfirmation;
 
 class PasswordResetController extends Controller
 {
@@ -73,7 +74,7 @@ class PasswordResetController extends Controller
 
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
-            function (User $user, string $password) {
+            function (User $user, string $password) use ($request) {
                 $user->forceFill([
                     'password' => Hash::make($password)
                 ])->setRememberToken(Str::random(60));
@@ -81,6 +82,12 @@ class PasswordResetController extends Controller
                 $user->save();
 
                 event(new PasswordReset($user));
+                
+                // Send confirmation email
+                $user->notify(new PasswordResetConfirmation(
+                    $request->ip(),
+                    $request->userAgent()
+                ));
             }
         );
 
@@ -126,6 +133,12 @@ class PasswordResetController extends Controller
             'password' => Hash::make($request->password)
         ]);
 
-        return back()->with('status', 'Your password has been changed successfully.');
+        // Send confirmation email
+        $user->notify(new PasswordResetConfirmation(
+            $request->ip(),
+            $request->userAgent()
+        ));
+
+        return back()->with('status', 'Your password has been changed successfully. A confirmation email has been sent to your email address.');
     }
 }

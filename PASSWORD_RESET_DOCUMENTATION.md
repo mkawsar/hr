@@ -16,16 +16,19 @@ The HR Admin system now includes comprehensive password reset and change passwor
 - **URL**: `/password/reset/{token}`
 - **Functionality**: Users can set a new password using the token from their email
 - **Validation**: Strong password requirements (8+ chars, mixed case, numbers, symbols)
+- **Confirmation**: Automatic confirmation email sent after successful reset
 
 ### 3. Change Password (Authenticated Users)
 - **URL**: `/password/change`
 - **Functionality**: Logged-in users can change their password
 - **Validation**: Current password verification + strong new password requirements
+- **Confirmation**: Automatic confirmation email sent after successful change
 
 ### 4. Filament Integration
 - **Page**: Change Password page in Filament admin panel
 - **Navigation**: Available in Account group for all authenticated users
 - **UI**: Modern, responsive form with validation
+- **Confirmation**: Automatic confirmation email sent after successful change
 
 ## Technical Implementation
 
@@ -39,12 +42,14 @@ The HR Admin system now includes comprehensive password reset and change passwor
 
 #### Notifications
 - `app/Notifications/ResetPasswordNotification.php` - Custom email template
+- `app/Notifications/PasswordResetConfirmation.php` - Confirmation email notification
 
 #### Views
 - `resources/views/auth/passwords/email.blade.php` - Password reset request form
 - `resources/views/auth/passwords/reset.blade.php` - Password reset form
 - `resources/views/auth/change-password.blade.php` - Change password form
-- `resources/views/emails/password-reset.blade.php` - Email template
+- `resources/views/emails/password-reset.blade.php` - Password reset email template
+- `resources/views/emails/password-reset-confirmation.blade.php` - Confirmation email template
 - `resources/views/filament/pages/change-password.blade.php` - Filament page
 
 #### Pages
@@ -70,6 +75,7 @@ The HR Admin system now includes comprehensive password reset and change passwor
    - Click link or copy URL to browser
    - Enter new password (twice)
    - Click "Reset Password"
+   - Receive confirmation email
 
 ### For Authenticated Users (Change Password)
 
@@ -78,11 +84,13 @@ The HR Admin system now includes comprehensive password reset and change passwor
    - Enter current password
    - Enter new password (twice)
    - Click "Change Password"
+   - Receive confirmation email
 
 2. **Via Filament Admin**:
    - Login to admin panel
    - Go to "Account" → "Change Password"
    - Fill form and submit
+   - Receive confirmation email
 
 ## Security Features
 
@@ -103,6 +111,13 @@ The HR Admin system now includes comprehensive password reset and change passwor
 - Built-in Laravel rate limiting
 - Prevents spam/abuse
 - Configurable limits
+
+### Confirmation Email Security
+- **Automatic Notifications**: Users receive confirmation emails for all password changes
+- **Security Details**: Includes timestamp, IP address, and device information
+- **Fraud Detection**: Users are alerted if they didn't initiate the password change
+- **Audit Trail**: Provides record of password change events
+- **Immediate Alert**: Users are notified instantly when password is changed
 
 ## Email Configuration
 
@@ -126,12 +141,20 @@ This will log emails to `storage/logs/laravel.log` instead of sending them.
 
 ## Customization
 
-### Email Template
-Edit `resources/views/emails/password-reset.blade.php` to customize:
+### Email Templates
+Edit email templates to customize:
+
+**Password Reset Email** (`resources/views/emails/password-reset.blade.php`):
 - Company branding
 - Colors and styling
 - Content and messaging
 - Additional security information
+
+**Confirmation Email** (`resources/views/emails/password-reset-confirmation.blade.php`):
+- Company branding
+- Security information display
+- Reset details (time, IP, device)
+- Security warnings
 
 ### Password Requirements
 Modify validation rules in:
