@@ -7,7 +7,8 @@ This document explains the monthly deduction system for handling late/early atte
 The system automatically processes monthly deductions based on employee attendance patterns. The deduction rules are:
 
 - **First 3 late/early occurrences**: No deduction (free allowance)
-- **4th occurrence and beyond**: 0.5 days deduction per occurrence
+- **4th occurrence**: 0.5 days deduction
+- **5th occurrence and beyond**: Additional 0.5 days deduction per occurrence
 - **Absent days**: 1 day deduction per absent day
 - **Leave deduction priority**: 
   1. Casual Leave (current year balance)
@@ -48,7 +49,10 @@ The system identifies two types of attendance issues:
 ### 2. Deduction Calculation
 ```php
 // Late/Early deduction
-late_early_deduction = late_early_count > 3 ? (late_early_count - 3) * 0.5 : 0;
+late_early_deduction = 0;
+if (late_early_count >= 4) {
+    late_early_deduction = 0.5 + ((late_early_count - 4) * 0.5);
+}
 
 // Absent deduction
 absent_deduction = absent_count * 1.0;
@@ -58,10 +62,10 @@ total_deduction = late_early_deduction + absent_deduction;
 ```
 
 **Examples:**
-- 4 late/early + 0 absent: (4-3) × 0.5 + 0 × 1.0 = **0.5 days**
-- 5 late/early + 1 absent: (5-3) × 0.5 + 1 × 1.0 = **2.0 days**
+- 4 late/early + 0 absent: 0.5 + ((4-4) × 0.5) + 0 × 1.0 = **0.5 days**
+- 5 late/early + 1 absent: 0.5 + ((5-4) × 0.5) + 1 × 1.0 = **2.0 days**
 - 2 late/early + 2 absent: 0 + 2 × 1.0 = **2.0 days**
-- 6 late/early + 1 absent: (6-3) × 0.5 + 1 × 1.0 = **2.5 days**
+- 6 late/early + 1 absent: 0.5 + ((6-4) × 0.5) + 1 × 1.0 = **2.5 days**
 
 ### 3. Leave Deduction Priority
 
@@ -110,7 +114,7 @@ total_deduction = late_early_deduction + absent_deduction;
 
 ### Scenario 1: Employee with 5 late entries, 0 absent
 - Late entries: 5, Absent days: 0
-- Deduction days: (5-3) * 0.5 + 0 * 1.0 = 1.0 day
+- Deduction days: 0.5 + ((5-4) * 0.5) + 0 * 1.0 = 1.0 day
 - Casual leave balance: 2.0 days
 - Result: Deduct 1.0 day from casual leave
 
@@ -123,14 +127,14 @@ total_deduction = late_early_deduction + absent_deduction;
 
 ### Scenario 3: Employee with 6 late entries, 1 absent day
 - Late entries: 6, Absent days: 1
-- Deduction days: (6-3) * 0.5 + 1 * 1.0 = 2.5 days
+- Deduction days: 0.5 + ((6-4) * 0.5) + 1 * 1.0 = 2.5 days
 - Casual leave balance: 0 days
 - Earned leave balance: 1.0 day
 - Result: Deduct 1.0 day from earned leave, 1.5 days remaining (logged but not deducted)
 
 ### Scenario 4: Employee with 2 late entries, 0 absent
 - Late entries: 2, Absent days: 0
-- Deduction days: 0 + 0 = 0 days (≤3 free allowance)
+- Deduction days: 0 + 0 = 0 days (<4 free allowance)
 - Result: No deduction
 
 ## Scheduling

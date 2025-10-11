@@ -94,12 +94,16 @@ class ProcessMonthlyDeductions extends Command
         $absentCount = $absentDays->count();
 
         // Calculate total deduction days
-        $lateEarlyDeduction = $lateEarlyCount > 3 ? ($lateEarlyCount - 3) * 0.5 : 0;
+        // New rule: If 4+ late days, start with 0.5 deduction, then 0.5 for each additional day
+        $lateEarlyDeduction = 0;
+        if ($lateEarlyCount >= 4) {
+            $lateEarlyDeduction = 0.5 + (($lateEarlyCount - 4) * 0.5);
+        }
         $absentDeduction = $absentCount * 1.0; // 1 day per absent day
         $totalDeductionDays = $lateEarlyDeduction + $absentDeduction;
 
         if ($totalDeductionDays <= 0) {
-            $this->line("No deduction needed for {$user->name} ({$user->employee_id}) - {$lateEarlyCount} late/early entries (≤3), {$absentCount} absent days");
+            $this->line("No deduction needed for {$user->name} ({$user->employee_id}) - {$lateEarlyCount} late/early entries (<4), {$absentCount} absent days");
             return;
         }
 
@@ -263,6 +267,6 @@ class ProcessMonthlyDeductions extends Command
             'applied_at' => now(),
         ]);
 
-        $this->line("  Created leave application record for {$days} days {$leaveType->name}");
+        $this->line("Created leave application record for {$days} days {$leaveType->name}");
     }
 }
